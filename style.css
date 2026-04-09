@@ -594,6 +594,17 @@ nav {
     gap: 8px;
 }
 .week-nav h2 { font-size: 16px; white-space: nowrap; }
+.week-jump-input {
+    padding: 4px 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-muted);
+    border-radius: var(--radius);
+    font-size: 11px;
+    width: 120px;
+    cursor: pointer;
+}
+.week-jump-input:focus { border-color: var(--primary); outline: none; }
 
 .view-actions {
     display: flex;
@@ -765,9 +776,9 @@ nav {
     color: var(--text-dim);
     margin-top: 2px;
 }
-.schedule-table th.today {
-    color: var(--primary);
-}
+.schedule-table th.today { color: var(--primary); }
+.schedule-table th.holiday { background: rgba(196,92,92,.08); }
+.day-holiday, .day-school { font-size: 10px; display: inline-block; margin-left: 2px; cursor: help; }
 
 .schedule-table td {
     padding: 4px;
@@ -1013,6 +1024,35 @@ nav {
     font-weight: 700;
     color: #fff;
     flex-shrink: 0;
+}
+
+/* Compliance warnings */
+.compliance-warnings {
+    width: 100%;
+    background: var(--danger-bg);
+    border: 1px solid var(--danger);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    margin-bottom: 12px;
+}
+.compliance-header {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--danger);
+    margin-bottom: 6px;
+}
+.compliance-item {
+    font-size: 12px;
+    color: var(--text);
+    padding: 3px 0;
+    border-bottom: 1px solid rgba(196,92,92,.15);
+}
+.compliance-item:last-child { border-bottom: none; }
+
+.summary-items {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
 }
 
 /* Week summary */

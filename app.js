@@ -590,6 +590,35 @@
         return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
     }
 
+    // Swiss/Valais holidays + Zermatt school holidays
+    const HOLIDAYS = {
+        // Fixed holidays
+        '01-01': 'Neujahr', '01-02': 'Berchtoldstag', '03-19': 'Josefstag',
+        '08-01': 'Nationalfeiertag', '08-15': 'Maria Himmelfahrt',
+        '11-01': 'Allerheiligen', '12-08': 'Maria Empfaengnis',
+        '12-25': '1. Weihnachtstag', '12-26': '2. Weihnachtstag'
+    };
+
+    // School holidays Valais 2025/2026 (approximate)
+    const SCHOOL_HOLIDAYS_2026 = [
+        { start: '2026-02-07', end: '2026-02-22', name: 'Sportferien' },
+        { start: '2026-04-04', end: '2026-04-19', name: 'Osterferien' },
+        { start: '2026-07-04', end: '2026-08-16', name: 'Sommerferien' },
+        { start: '2026-10-10', end: '2026-10-25', name: 'Herbstferien' },
+        { start: '2026-12-19', end: '2027-01-04', name: 'Weihnachtsferien' }
+    ];
+
+    function getHoliday(date) {
+        const d = new Date(date);
+        const mmdd = `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        return HOLIDAYS[mmdd] || null;
+    }
+
+    function getSchoolHoliday(date) {
+        const ds = formatDate(date);
+        return SCHOOL_HOLIDAYS_2026.find(h => ds >= h.start && ds <= h.end);
+    }
+
     function isToday(date) {
         const today = new Date();
         const d = new Date(date);
@@ -598,8 +627,35 @@
 
     // ========== PERSISTENCE ==========
     let saveTimer = null;
+    const undoStack = [];
+    const MAX_UNDO = 30;
 
-    function saveState() {
+    function pushUndo() {
+        undoStack.push(JSON.stringify({
+            schedule: state.schedule,
+            employees: state.employees,
+            absences: state.absences,
+            shiftTypes: state.shiftTypes
+        }));
+        if (undoStack.length > MAX_UNDO) undoStack.shift();
+    }
+
+    function undo() {
+        if (undoStack.length === 0) { showToast('Nichts zum Rueckgaengig machen', 'info'); return; }
+        const prev = JSON.parse(undoStack.pop());
+        state.schedule = prev.schedule;
+        state.employees = prev.employees;
+        state.absences = prev.absences;
+        state.shiftTypes = prev.shiftTypes;
+        saveState();
+        renderSchedule();
+        showToast('Rueckgaengig gemacht', 'success');
+    }
+
+    function saveState(skipUndo) {
+        // Push undo state before saving (unless skipped)
+        if (!skipUndo) pushUndo();
+
         // Save to localStorage immediately (cache)
         const toSave = {
             hotels: state.hotels,
@@ -876,6 +932,19 @@
 
         document.getElementById('btn-auto-fill').addEventListener('click', autoFillWeek);
         document.getElementById('btn-copy-week').addEventListener('click', copyWeek);
+
+        // Week jump
+        document.getElementById('week-jump').addEventListener('change', (e) => {
+            const val = e.target.value; // format: "2026-W15"
+            if (!val) return;
+            const [year, wStr] = val.split('-W');
+            const jan4 = new Date(parseInt(year), 0, 4);
+            const dayOfWeek = jan4.getDay() || 7;
+            const monday = new Date(jan4);
+            monday.setDate(jan4.getDate() - dayOfWeek + 1 + (parseInt(wStr) - 1) * 7);
+            state.currentWeekStart = monday;
+            renderSchedule();
+        });
         document.getElementById('btn-export').addEventListener('click', exportPDF);
     }
 
@@ -1131,7 +1200,13 @@
 
         weekDays.forEach((day, i) => {
             const todayCls = isToday(day) ? ' today' : '';
-            html += `<th class="${todayCls}">${DAY_NAMES[i]}<span class="day-date">${formatDateShort(day)}</span></th>`;
+            const holiday = getHoliday(day);
+            const schoolHol = getSchoolHoliday(day);
+            let dayExtra = '';
+            let extraCls = todayCls;
+            if (holiday) { dayExtra = `<span class="day-holiday" title="${holiday}">🔴</span>`; extraCls += ' holiday'; }
+            if (schoolHol) { dayExtra += `<span class="day-school" title="${schoolHol.name}">🎒</span>`; }
+            html += `<th class="${extraCls}">${DAY_NAMES[i]}<span class="day-date">${formatDateShort(day)}</span>${dayExtra}</th>`;
         });
         html += `<th>Std.</th></tr></thead><tbody>`;
 
@@ -1322,33 +1397,79 @@
         let totalHours = 0;
         let freeDays = 0;
         let vacationDays = 0;
-        let warnings = 0;
+        let shiftWarnings = 0;
+        const complianceWarnings = [];
 
         state.employees.forEach(emp => {
             const shifts = [];
-            weekDays.forEach(day => {
+            let empWeekHours = 0;
+
+            weekDays.forEach((day, i) => {
                 const dateStr = formatDate(day);
                 const a = (state.schedule[dateStr] || {})[emp.id];
                 if (a) {
                     if (a.shiftTypeId === 'free') freeDays++;
                     else if (a.shiftTypeId === 'vacation') vacationDays++;
-                    else if (a.shiftTypeId !== 'absent') {
+                    else if (a.shiftTypeId !== 'sick' && a.shiftTypeId !== 'absent') {
                         totalShifts++;
                         const st = state.shiftTypes.find(s => s.id === a.shiftTypeId);
-                        if (st) totalHours += calcShiftHours(st);
+                        if (st) {
+                            const h = calcShiftHours(st);
+                            totalHours += h;
+                            empWeekHours += h;
+                        }
                         shifts.push(a.shiftTypeId);
                     }
                 }
+
+                // Check rest period (11h) between consecutive days
+                if (i > 0) {
+                    const prevDate = formatDate(weekDays[i - 1]);
+                    const prevA = (state.schedule[prevDate] || {})[emp.id];
+                    if (prevA && a && prevA.shiftTypeId !== 'free' && prevA.shiftTypeId !== 'vacation' && prevA.shiftTypeId !== 'sick' && prevA.shiftTypeId !== 'absent' &&
+                        a.shiftTypeId !== 'free' && a.shiftTypeId !== 'vacation' && a.shiftTypeId !== 'sick' && a.shiftTypeId !== 'absent') {
+                        const prevShift = state.shiftTypes.find(s => s.id === prevA.shiftTypeId);
+                        const currShift = state.shiftTypes.find(s => s.id === a.shiftTypeId);
+                        if (prevShift && currShift) {
+                            const [peh, pem] = prevShift.end.split(':').map(Number);
+                            const [csh, csm] = currShift.start.split(':').map(Number);
+                            const restHours = (csh * 60 + csm + 24 * 60 - peh * 60 - pem) / 60;
+                            const minRest = state.settings.minRestHours || 11;
+                            if (restHours < minRest) {
+                                complianceWarnings.push(`${emp.name}: Nur ${restHours.toFixed(1)}h Ruhezeit ${DAY_NAMES[i-1]}→${DAY_NAMES[i]} (min. ${minRest}h)`);
+                            }
+                        }
+                    }
+                }
             });
-            if (new Set(shifts).size > 1) warnings++;
+
+            if (new Set(shifts).size > 1) shiftWarnings++;
+
+            // Check weekly hours (CH max 45h)
+            if (empWeekHours > 45) {
+                complianceWarnings.push(`${emp.name}: ${empWeekHours.toFixed(1)}h/Woche (max. 45h CH-Arbeitsrecht)`);
+            } else if (empWeekHours > 42) {
+                complianceWarnings.push(`${emp.name}: ${empWeekHours.toFixed(1)}h/Woche (nahe am 45h-Limit)`);
+            }
         });
 
+        let warningHtml = '';
+        if (complianceWarnings.length > 0) {
+            warningHtml = `<div class="compliance-warnings">
+                <div class="compliance-header">⚠ Compliance-Warnungen (${complianceWarnings.length})</div>
+                ${complianceWarnings.map(w => `<div class="compliance-item">${w}</div>`).join('')}
+            </div>`;
+        }
+
         container.innerHTML = `
-            <div class="summary-item"><span class="label">Schichten</span><span class="value">${totalShifts}</span></div>
-            <div class="summary-item"><span class="label">Stunden</span><span class="value">${totalHours.toFixed(0)}h</span></div>
-            <div class="summary-item"><span class="label">Freie Tage</span><span class="value">${freeDays}</span></div>
-            <div class="summary-item"><span class="label">Ferien</span><span class="value" style="color:var(--shift-vacation)">${vacationDays}</span></div>
-            <div class="summary-item"><span class="label">Wechsel-Warnungen</span><span class="value" style="color:${warnings > 0 ? 'var(--warning)' : 'var(--success)'}">${warnings}</span></div>
+            ${warningHtml}
+            <div class="summary-items">
+                <div class="summary-item"><span class="label">Schichten</span><span class="value">${totalShifts}</span></div>
+                <div class="summary-item"><span class="label">Stunden</span><span class="value">${totalHours.toFixed(0)}h</span></div>
+                <div class="summary-item"><span class="label">Freie Tage</span><span class="value">${freeDays}</span></div>
+                <div class="summary-item"><span class="label">Ferien</span><span class="value" style="color:var(--shift-vacation)">${vacationDays}</span></div>
+                <div class="summary-item"><span class="label">Warnungen</span><span class="value" style="color:${(shiftWarnings + complianceWarnings.length) > 0 ? 'var(--danger)' : 'var(--success)'}">${shiftWarnings + complianceWarnings.length}</span></div>
+            </div>
         `;
     }
 
@@ -2316,6 +2437,22 @@
     }
 
     function deleteAbsence(id) {
+        const absence = state.absences.find(a => a.id === id);
+        if (absence) {
+            // Clean schedule entries for this absence period
+            let d = parseDate(absence.startDate);
+            const end = parseDate(absence.endDate);
+            while (d <= end) {
+                const ds = formatDate(d);
+                if (state.schedule[ds] && state.schedule[ds][absence.employeeId]) {
+                    const a = state.schedule[ds][absence.employeeId];
+                    if (a.shiftTypeId === 'vacation' || a.shiftTypeId === 'sick' || a.shiftTypeId === 'absent') {
+                        delete state.schedule[ds][absence.employeeId];
+                    }
+                }
+                d = addDays(d, 1);
+            }
+        }
         state.absences = state.absences.filter(a => a.id !== id);
         saveState();
         renderAbsences();
@@ -2653,6 +2790,10 @@
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') closeModal();
+            if (e.key === 'z' && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
+                e.preventDefault();
+                undo();
+            }
             if (e.key === 'ArrowLeft' && e.altKey && state.currentView === 'schedule') {
                 state.currentWeekStart = addDays(state.currentWeekStart, -7);
                 renderSchedule();
