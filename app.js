@@ -474,13 +474,13 @@
         { id: 'e2', name: 'Noemi', hotels: ['julen'], fixedShift: null, maxDays: 5, color: '#8b5cf6', defaultFreeDays: [0, 6], dayShifts: {}, order: 1 },
         { id: 'e3', name: 'Fabian', hotels: ['julen'], fixedShift: null, maxDays: 5, color: '#22c55e', defaultFreeDays: [0, 1], dayShifts: {}, order: 2 },
         { id: 'e4', name: 'Rocio', hotels: ['julen', 'alpenhof'], fixedShift: null, maxDays: 5, color: '#f59e0b', defaultFreeDays: [5, 6], dayShifts: {}, order: 3 },
-        { id: 'e9', name: 'Alisa', hotels: ['julen'], fixedShift: 'day', maxDays: 5, color: '#06b6d4', defaultFreeDays: [], dayShifts: {}, order: 4, excludeFromCoverage: true },
+        { id: 'e9', name: 'Alisa', hotels: ['julen'], fixedShift: 'day', maxDays: 5, color: '#06b6d4', defaultFreeDays: [], dayShifts: {}, order: 4, excludeFromCoverage: true, position: 'Front Office Manager' },
         { id: 'e5', name: 'Karin', hotels: ['alpenhof'], fixedShift: null, maxDays: 5, color: '#ec4899', defaultFreeDays: [5, 6], dayShifts: {}, order: 5 },
         { id: 'e6', name: 'Anano', hotels: ['alpenhof'], fixedShift: null, maxDays: 5, color: '#14b8a6', defaultFreeDays: [1, 2], dayShifts: {}, order: 6 },
         { id: 'e7', name: 'Lea', hotels: ['alpenhof'], fixedShift: null, maxDays: 3, color: '#f97316', defaultFreeDays: [3, 4, 5, 6], dayShifts: {}, order: 7 },
         { id: 'e8', name: 'Klaudia', hotels: ['alpenhof'], fixedShift: null, maxDays: 5, color: '#6366f1', defaultFreeDays: [0, 1], dayShifts: {}, order: 8 },
         { id: 'e10', name: 'Jenny', hotels: ['alpenhof'], fixedShift: 'day', maxDays: 5, color: '#d946ef', defaultFreeDays: [5, 6], dayShifts: {}, order: 9, excludeFromCoverage: true },
-        { id: 'e11', name: 'Anja', hotels: ['julen', 'alpenhof'], fixedShift: 'school', maxDays: 5, color: '#94a3b8', defaultFreeDays: [5, 6], dayShifts: {}, order: 10 },
+        { id: 'e11', name: 'Anja', hotels: ['julen', 'alpenhof'], fixedShift: 'school', maxDays: 5, color: '#94a3b8', defaultFreeDays: [5, 6], dayShifts: {}, order: 10, position: 'Auszubildende' },
         { id: 'e12', name: 'Olya', hotels: ['alpenhof'], fixedShift: 'school', maxDays: 5, color: '#78716c', defaultFreeDays: [5, 6], dayShifts: {}, order: 11 }
     ];
 
@@ -500,6 +500,8 @@
         employees: [],
         schedule: {}, // { 'YYYY-MM-DD': { employeeId: { hotel, shiftTypeId } } }
         absences: [], // { id, employeeId, type, startDate, endDate, note }
+        rules: [], // { employeeId, type, description, maxHours }
+        vacationRequests: [], // { id, employeeId, startDate, endDate, note, status }
         settings: {},
         currentWeekStart: null, // Monday date
         currentHotelFilter: 'all',
@@ -663,6 +665,8 @@
             employees: state.employees,
             schedule: state.schedule,
             absences: state.absences,
+            rules: state.rules || [],
+            vacationRequests: state.vacationRequests || [],
             settings: state.settings
         };
         localStorage.setItem('schichtplan_data', JSON.stringify(toSave));
@@ -718,6 +722,8 @@
                 state.employees = data.employees || DEFAULT_EMPLOYEES;
                 state.schedule = data.schedule || {};
                 state.absences = data.absences || [];
+                state.rules = data.rules || [];
+                state.vacationRequests = data.vacationRequests || [];
                 state.settings = { ...DEFAULT_SETTINGS, ...(data.settings || {}) };
             } catch {
                 initDefaults();
@@ -737,7 +743,11 @@
         state.employees = JSON.parse(JSON.stringify(DEFAULT_EMPLOYEES));
         state.schedule = {};
         state.absences = [];
-        state.settings = { ...DEFAULT_SETTINGS };
+        state.rules = [
+            { employeeId: 'e11', type: 'not-alone', description: 'Anja darf nicht alleine auf einer Schicht sein' }
+        ];
+        state.vacationRequests = [];
+        state.settings = { ...DEFAULT_SETTINGS, vacationDaysPerMonth: 1.75 };
 
         // Pre-fill the example week from the PDF
         // Use current week for prefill data
@@ -904,6 +914,11 @@
         else if (viewName === 'absences') renderAbsences();
         else if (viewName === 'stats') renderStats();
         else if (viewName === 'settings') renderSettings();
+        else if (viewName === 'vacation' && window.renderVacation) window.renderVacation();
+        else if (viewName === 'rules' && window.renderRules) window.renderRules();
+        else if (viewName === 'vacation-requests' && window.renderVacationRequests) window.renderVacationRequests();
+        else if (viewName === 'gantt' && window.renderGantt) window.renderGantt();
+        else if (viewName === 'portal' && window.renderPortal) window.renderPortal();
     }
 
     // ========== SCHEDULE VIEW ==========
@@ -932,6 +947,7 @@
 
         document.getElementById('btn-auto-fill').addEventListener('click', autoFillWeek);
         document.getElementById('btn-copy-week').addEventListener('click', copyWeek);
+        document.getElementById('btn-undo').addEventListener('click', undo);
 
         // Week jump
         document.getElementById('week-jump').addEventListener('change', (e) => {
@@ -955,6 +971,10 @@
 
         document.getElementById('week-title').textContent =
             `KW ${kw} | ${formatDateShort(weekDays[0])} - ${formatDateShort(weekDays[6])}.${weekDays[6].getFullYear()}`;
+
+        // Sync week-jump input to current week
+        const wj = document.getElementById('week-jump');
+        if (wj) wj.value = `${weekDays[0].getFullYear()}-W${String(kw).padStart(2, '0')}`;
 
         let html = '';
         const hotelsToShow = state.currentHotelFilter === 'all'
@@ -1204,8 +1224,8 @@
             const schoolHol = getSchoolHoliday(day);
             let dayExtra = '';
             let extraCls = todayCls;
-            if (holiday) { dayExtra = `<span class="day-holiday" title="${holiday}">🔴</span>`; extraCls += ' holiday'; }
-            if (schoolHol) { dayExtra += `<span class="day-school" title="${schoolHol.name}">🎒</span>`; }
+            if (holiday) { dayExtra = `<span class="day-holiday">${holiday}</span>`; extraCls += ' holiday'; }
+            if (schoolHol) { dayExtra += `<span class="day-school">Schulferien</span>`; }
             html += `<th class="${extraCls}">${DAY_NAMES[i]}<span class="day-date">${formatDateShort(day)}</span>${dayExtra}</th>`;
         });
         html += `<th>Std.</th></tr></thead><tbody>`;
@@ -2816,6 +2836,12 @@
         deleteAbsence: deleteAbsence,
         editAbsence: (id) => openAbsenceForm(state.absences.find(a => a.id === id))
     };
+
+    // Expose state and helpers for features.js
+    window.appState = state;
+    window.saveStateExt = () => saveState();
+    window.showToastExt = showToast;
+    window.openModalExt = openModal;
 
     document.addEventListener('DOMContentLoaded', init);
 })();

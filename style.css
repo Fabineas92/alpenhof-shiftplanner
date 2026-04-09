@@ -778,7 +778,26 @@ nav {
 }
 .schedule-table th.today { color: var(--primary); }
 .schedule-table th.holiday { background: rgba(196,92,92,.08); }
-.day-holiday, .day-school { font-size: 10px; display: inline-block; margin-left: 2px; cursor: help; }
+.day-holiday {
+    display: block;
+    font-size: 8px;
+    font-weight: 400;
+    color: var(--danger);
+    text-transform: none;
+    letter-spacing: 0;
+    line-height: 1.2;
+    margin-top: 2px;
+}
+.day-school {
+    display: block;
+    font-size: 8px;
+    font-weight: 400;
+    color: var(--shift-absent);
+    text-transform: none;
+    letter-spacing: 0;
+    line-height: 1.2;
+    margin-top: 1px;
+}
 
 .schedule-table td {
     padding: 4px;
@@ -1612,6 +1631,51 @@ nav {
     .schedule-table { font-size: 11px; }
     .modal { width: 95%; }
 }
+
+/* ========== GANTT ========== */
+.gantt-table {
+    border-collapse: collapse;
+    font-size: 10px;
+    min-width: 100%;
+}
+.gantt-table th, .gantt-table td {
+    border: 1px solid var(--border);
+    padding: 0;
+    text-align: center;
+}
+.gantt-name {
+    position: sticky;
+    left: 0;
+    background: var(--bg-card);
+    z-index: 2;
+    padding: 4px 8px !important;
+    min-width: 120px;
+    text-align: left !important;
+    white-space: nowrap;
+}
+.gantt-month {
+    background: var(--bg-hover);
+    color: var(--text-muted);
+    font-size: 11px;
+    padding: 4px 0 !important;
+    letter-spacing: .5px;
+}
+.gantt-week {
+    background: var(--bg-card);
+    color: var(--text-dim);
+    font-size: 9px;
+    padding: 2px 0 !important;
+    min-width: 18px;
+}
+.gantt-now { color: var(--primary) !important; font-weight: 700; }
+.gantt-cell {
+    width: 18px;
+    height: 20px;
+}
+.gantt-work { background: var(--shift-early-bg); }
+.gantt-vacation { background: var(--shift-vacation-bg); }
+.gantt-sick { background: var(--warning-bg); }
+.gantt-empty { background: transparent; }
 
 /* Print styles */
 @media print {
