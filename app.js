@@ -802,12 +802,12 @@
             ['e11','alpenhof',['school','school','school','school','school','free','free']]
         ], sched);
 
-        // ===== KW 14: 30.03-05.04 =====
+        // ===== KW 14: 30.03-05.04 (Fabian starts 01.04 = Mi) =====
         const kw14 = getWeekDays(addDays(monday, -7));
         applyWeek(kw14, [
             ['e1','julen',['early','early','early','free','free','late','late']],
             ['e2','julen',['free','late','late','late','late','late','free']],
-            ['e3','julen',['free','free','early','early','early','early','early']],
+            ['e3','julen',['absent','absent','early','early','early','early','early']],
             ['e4','julen',['late','late','mid','mid','late','free','free']],
             ['e9','julen',['day','day','day','day','day','free','free']],
             ['e11','julen',['school','school','school','school','school','free','free']],
@@ -820,12 +820,11 @@
             ['e11','alpenhof',['school','school','school','school','school','free','free']]
         ], sched);
 
-        // ===== KW 13: 23.03-29.03 =====
+        // ===== KW 13: 23.03-29.03 (Fabian not yet started) =====
         const kw13 = getWeekDays(addDays(monday, -14));
         applyWeek(kw13, [
             ['e1','julen',['free','free','early','early','early','late','late']],
             ['e2','julen',['late','late','late','late','late','free','free']],
-            ['e3','julen',['early','early','free','free','early','early','early']],
             ['e4','julen',['mid','mid','late','late','free','free','mid']],
             ['e9','julen',['day','day','day','day','day','free','free']],
             ['e11','julen',['school','school','school','school','school','free','free']],
@@ -838,12 +837,11 @@
             ['e11','alpenhof',['school','school','school','school','school','free','free']]
         ], sched);
 
-        // ===== KW 12: 16.03-22.03 =====
+        // ===== KW 12: 16.03-22.03 (Fabian not yet started) =====
         const kw12 = getWeekDays(addDays(monday, -21));
         applyWeek(kw12, [
             ['e1','julen',['early','early','early','late','late','free','free']],
             ['e2','julen',['late','late','free','free','late','late','late']],
-            ['e3','julen',['free','free','early','early','early','early','early']],
             ['e4','julen',['late','mid','late','late','free','free','mid']],
             ['e9','julen',['day','day','day','day','day','free','free']],
             ['e11','julen',['school','school','school','school','school','free','free']],
@@ -856,12 +854,11 @@
             ['e11','alpenhof',['school','school','school','school','school','free','free']]
         ], sched);
 
-        // ===== KW 11: 09.03-15.03 =====
+        // ===== KW 11: 09.03-15.03 (Fabian not yet started) =====
         const kw11 = getWeekDays(addDays(monday, -28));
         applyWeek(kw11, [
             ['e1','julen',['early','early','free','free','early','late','late']],
             ['e2','julen',['free','late','late','late','late','free','late']],
-            ['e3','julen',['free','free','early','early','early','early','early']],
             ['e4','julen',['late','mid','mid','late','free','free','mid']],
             ['e9','julen',['day','day','day','day','day','free','free']],
             ['e11','julen',['school','school','school','school','school','free','free']],
