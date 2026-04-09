@@ -2,7 +2,14 @@
 (function () {
     'use strict';
 
-    const PASSCODE = '3920';
+    // Passcode hash is loaded from server, never exposed in code
+    let PASSCODE_HASH = null;
+
+    async function hashCode(code) {
+        const encoded = new TextEncoder().encode(code + '_schichtplan_salt_julen');
+        const hashBuffer = await crypto.subtle.digest('SHA-256', encoded);
+        return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
     const QUOTES = [
         'Natur, Genuss & Wellness',
         'Traditionell, Authentisch & Informell',
@@ -13,7 +20,7 @@
         'Die Magie dieser einzigartigen Bergwelt'
     ];
 
-    function initLockScreen() {
+    async function initLockScreen() {
         const lockScreen = document.getElementById('lock-screen');
         if (!lockScreen) return;
 
@@ -21,6 +28,22 @@
         if (sessionStorage.getItem('schichtplan_auth') === '1') {
             unlock();
             return;
+        }
+
+        // Load passcode hash from Supabase
+        try {
+            const res = await fetch('https://rpkdlckoupswdwttnvvt.supabase.co/rest/v1/settings?key=eq.passcode_hash&select=value', {
+                headers: {
+                    'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwa2RsY2tvdXBzd2R3dHRudnZ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3MzM2NDMsImV4cCI6MjA5MTMwOTY0M30.bguDIZx_Tl9jw88Z_nVlMpSdkJyXEufLrvBUSI2Qlg0',
+                    'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwa2RsY2tvdXBzd2R3dHRudnZ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3MzM2NDMsImV4cCI6MjA5MTMwOTY0M30.bguDIZx_Tl9jw88Z_nVlMpSdkJyXEufLrvBUSI2Qlg0'
+                }
+            });
+            const data = await res.json();
+            if (data && data.length > 0) {
+                PASSCODE_HASH = String(data[0].value);
+            }
+        } catch (e) {
+            console.warn('Could not load passcode hash from server');
         }
 
         // Rotate quotes
@@ -68,9 +91,10 @@
         document.getElementById('lock-submit').addEventListener('click', () => checkCode(digits));
     }
 
-    function checkCode(digits) {
+    async function checkCode(digits) {
         const code = [...digits].map(d => d.value).join('');
-        if (code === PASSCODE) {
+        const codeHash = await hashCode(code);
+        if (PASSCODE_HASH && codeHash === PASSCODE_HASH) {
             sessionStorage.setItem('schichtplan_auth', '1');
             // Success animation
             digits.forEach(d => {
