@@ -2106,9 +2106,15 @@
         const colors = ['#3b82f6','#8b5cf6','#22c55e','#f59e0b','#ec4899','#14b8a6','#f97316','#6366f1','#ef4444','#06b6d4'];
 
         let html = `
-            <div class="form-group">
-                <label>Name</label>
-                <input type="text" id="emp-name" value="${emp ? emp.name : ''}" placeholder="Vor- und Nachname">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Name</label>
+                    <input type="text" id="emp-name" value="${emp ? emp.name : ''}" placeholder="Vor- und Nachname">
+                </div>
+                <div class="form-group">
+                    <label>Position</label>
+                    <input type="text" id="emp-position" value="${emp ? (emp.position || '') : ''}" placeholder="z.B. Front Office Agent">
+                </div>
             </div>
             <div class="form-group">
                 <label>Hotels</label>
@@ -2173,6 +2179,7 @@
         openModal(title, html, () => {
             const name = document.getElementById('emp-name').value.trim();
             if (!name) { showToast('Name ist erforderlich', 'error'); return false; }
+            const position = document.getElementById('emp-position').value.trim();
 
             const hotels = [...document.querySelectorAll('input[name="emp-hotel"]:checked')].map(c => c.value);
             if (hotels.length === 0) { showToast('Mindestens ein Hotel wählen', 'error'); return false; }
@@ -2190,6 +2197,7 @@
 
             if (isEdit) {
                 emp.name = name;
+                emp.position = position;
                 emp.hotels = hotels;
                 emp.maxDays = maxDays;
                 emp.fixedShift = fixedShift;
@@ -2197,7 +2205,7 @@
                 emp.dayShifts = dayShifts;
                 emp.color = color;
             } else {
-                state.employees.push({ id: generateId(), name, hotels, fixedShift, maxDays, defaultFreeDays, dayShifts, color });
+                state.employees.push({ id: generateId(), name, position, hotels, fixedShift, maxDays, defaultFreeDays, dayShifts, color });
             }
 
             saveState();

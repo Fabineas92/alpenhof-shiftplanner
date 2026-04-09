@@ -81,28 +81,9 @@
         const state = window.appState;
         if (!state.rules) state.rules = [];
 
-        // Positions section
-        let html = `<div class="settings-group" style="margin-bottom:16px">
-            <h3>Positionen</h3>
-            <div class="cards-grid">`;
-
-        state.employees.sort((a, b) => a.name.localeCompare(b.name)).forEach(emp => {
-            html += `<div class="card" style="padding:12px">
-                <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-                    <div class="avatar" style="background:${emp.color};width:24px;height:24px;font-size:10px">${emp.name.split(' ').map(n=>n[0]).join('').slice(0,2)}</div>
-                    <strong style="font-size:13px">${emp.name}</strong>
-                </div>
-                <div class="form-group" style="margin-bottom:0">
-                    <input type="text" class="position-input" data-emp-id="${emp.id}" value="${emp.position || ''}" placeholder="z.B. Front Office Manager" style="font-size:12px;padding:6px 8px">
-                </div>
-            </div>`;
-        });
-
-        html += `</div></div>`;
-
-        // Rules section
-        html += `<div class="settings-group">
-            <h3>Regeln</h3>`;
+        let html = `<div class="settings-group">
+            <h3>Regeln</h3>
+            <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px">Positionen werden im Mitarbeiter-Profil festgelegt (Tab "Mitarbeiter" → Bearbeiten).</p>`;
 
         if (state.rules.length === 0) {
             html += '<p style="color:var(--text-dim);font-size:13px;padding:8px 0">Keine Regeln definiert. Klicke "Regel hinzufuegen" um eine neue Regel zu erstellen.</p>';
@@ -122,20 +103,7 @@
 
         html += `</div>`;
 
-        // Save positions button
-        html += `<button class="btn-primary" id="btn-save-positions" style="margin-top:12px">Positionen speichern</button>`;
-
         container.innerHTML = html;
-
-        // Position save handler
-        document.getElementById('btn-save-positions')?.addEventListener('click', () => {
-            document.querySelectorAll('.position-input').forEach(inp => {
-                const emp = state.employees.find(e => e.id === inp.dataset.empId);
-                if (emp) emp.position = inp.value.trim();
-            });
-            window.saveStateExt();
-            window.showToastExt('Positionen gespeichert', 'success');
-        });
     }
 
     function openAddRule() {
