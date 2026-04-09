@@ -764,111 +764,20 @@
         const sched = {};
         const monday = getMonday(new Date());
 
-        // ===== KW 16: 13.04-19.04 (FROM PDF - EXACT) =====
+        // ===== KW 16: 13.04-19.04 (EXAKT AUS PDF) =====
+        // Nur die 8 Mitarbeiter die im PDF stehen
         const kw16 = getWeekDays(addDays(monday, 7));
         applyWeek(kw16, [
-            // Hotel Julen (exact from PDF)
-            ['e1','julen',['early','early','early','free','free','late','late']],
-            ['e2','julen',['free','late','late','late','late','late','free']],
-            ['e3','julen',['free','free','early','early','early','early','early']],
-            ['e4','julen',['late','mid','mid','vacation','vacation','vacation','vacation']],
-            ['e9','julen',['day','day','day','day','day','free','free']],
-            ['e11','julen',['school','school','school','school','school','free','free']],
-            // Hotel Alpenhof (exact from PDF)
-            ['e5','alpenhof',['late','late','late','late','late','free','free']],
-            ['e6','alpenhof',['late','free','free','late','late','late','late']],
-            ['e7','alpenhof',['early','early','early','absent','absent','absent','absent']],
-            ['e8','alpenhof',['free','free','early','early','early','early','early']],
-            ['e10','alpenhof',['day','day','day','day','day','free','free']],
-            ['e12','alpenhof',['school','school','school','school','school','free','free']],
-            ['e11','alpenhof',['school','school','school','school','school','free','free']]
-        ], sched);
-
-        // ===== KW 15: 06.04-12.04 (CURRENT WEEK) =====
-        const kw15 = getWeekDays(monday);
-        applyWeek(kw15, [
-            ['e1','julen',['early','early','early','free','free','late','late']],
-            ['e2','julen',['free','late','late','late','late','late','free']],
-            ['e3','julen',['free','free','early','early','early','early','early']],
-            ['e4','julen',['late','mid','mid','late','late','mid','early']],
-            ['e9','julen',['day','day','day','day','day','free','free']],
-            ['e11','julen',['school','school','school','school','school','free','free']],
-            ['e5','alpenhof',['late','late','late','late','late','free','free']],
-            ['e6','alpenhof',['late','free','free','late','late','late','late']],
-            ['e7','alpenhof',['early','early','early','early','early','free','free']],
-            ['e8','alpenhof',['free','free','early','early','early','early','early']],
-            ['e10','alpenhof',['day','day','day','day','day','free','free']],
-            ['e12','alpenhof',['school','school','school','school','school','free','free']],
-            ['e11','alpenhof',['school','school','school','school','school','free','free']]
-        ], sched);
-
-        // ===== KW 14: 30.03-05.04 (Fabian starts 01.04 = Mi) =====
-        const kw14 = getWeekDays(addDays(monday, -7));
-        applyWeek(kw14, [
-            ['e1','julen',['early','early','early','free','free','late','late']],
-            ['e2','julen',['free','late','late','late','late','late','free']],
-            ['e3','julen',['absent','absent','early','early','early','early','early']],
-            ['e4','julen',['late','late','mid','mid','late','free','free']],
-            ['e9','julen',['day','day','day','day','day','free','free']],
-            ['e11','julen',['school','school','school','school','school','free','free']],
-            ['e5','alpenhof',['late','late','late','late','late','free','free']],
-            ['e6','alpenhof',['late','late','free','free','late','late','late']],
-            ['e7','alpenhof',['early','early','early','early','early','free','free']],
-            ['e8','alpenhof',['free','free','early','early','early','early','early']],
-            ['e10','alpenhof',['day','day','day','day','day','free','free']],
-            ['e12','alpenhof',['school','school','school','school','school','free','free']],
-            ['e11','alpenhof',['school','school','school','school','school','free','free']]
-        ], sched);
-
-        // ===== KW 13: 23.03-29.03 (Fabian not yet started) =====
-        const kw13 = getWeekDays(addDays(monday, -14));
-        applyWeek(kw13, [
-            ['e1','julen',['free','free','early','early','early','late','late']],
-            ['e2','julen',['late','late','late','late','late','free','free']],
-            ['e4','julen',['mid','mid','late','late','free','free','mid']],
-            ['e9','julen',['day','day','day','day','day','free','free']],
-            ['e11','julen',['school','school','school','school','school','free','free']],
-            ['e5','alpenhof',['late','late','late','late','late','free','free']],
-            ['e6','alpenhof',['free','free','late','late','late','late','late']],
-            ['e7','alpenhof',['early','early','early','early','early','free','free']],
-            ['e8','alpenhof',['early','early','free','free','early','early','early']],
-            ['e10','alpenhof',['day','day','day','day','day','free','free']],
-            ['e12','alpenhof',['school','school','school','school','school','free','free']],
-            ['e11','alpenhof',['school','school','school','school','school','free','free']]
-        ], sched);
-
-        // ===== KW 12: 16.03-22.03 (Fabian not yet started) =====
-        const kw12 = getWeekDays(addDays(monday, -21));
-        applyWeek(kw12, [
-            ['e1','julen',['early','early','early','late','late','free','free']],
-            ['e2','julen',['late','late','free','free','late','late','late']],
-            ['e4','julen',['late','mid','late','late','free','free','mid']],
-            ['e9','julen',['day','day','day','day','day','free','free']],
-            ['e11','julen',['school','school','school','school','school','free','free']],
-            ['e5','alpenhof',['late','late','late','late','late','free','free']],
-            ['e6','alpenhof',['late','free','free','late','late','late','late']],
-            ['e7','alpenhof',['early','early','early','early','free','free','early']],
-            ['e8','alpenhof',['free','free','early','early','early','early','early']],
-            ['e10','alpenhof',['day','day','day','day','day','free','free']],
-            ['e12','alpenhof',['school','school','school','school','school','free','free']],
-            ['e11','alpenhof',['school','school','school','school','school','free','free']]
-        ], sched);
-
-        // ===== KW 11: 09.03-15.03 (Fabian not yet started) =====
-        const kw11 = getWeekDays(addDays(monday, -28));
-        applyWeek(kw11, [
-            ['e1','julen',['early','early','free','free','early','late','late']],
-            ['e2','julen',['free','late','late','late','late','free','late']],
-            ['e4','julen',['late','mid','mid','late','free','free','mid']],
-            ['e9','julen',['day','day','day','day','day','free','free']],
-            ['e11','julen',['school','school','school','school','school','free','free']],
-            ['e5','alpenhof',['late','late','late','late','late','free','free']],
-            ['e6','alpenhof',['late','late','free','free','late','late','late']],
-            ['e7','alpenhof',['early','early','early','early','early','free','free']],
-            ['e8','alpenhof',['free','free','early','early','early','early','early']],
-            ['e10','alpenhof',['day','day','day','day','day','free','free']],
-            ['e12','alpenhof',['school','school','school','school','school','free','free']],
-            ['e11','alpenhof',['school','school','school','school','school','free','free']]
+            // Hotel Julen (rot)
+            ['e1','julen',['early','early','early','free','free','late','late']],       // Johanna
+            ['e2','julen',['free','late','late','late','late','late','free']],           // Noemi
+            ['e3','julen',['free','free','early','early','early','early','early']],     // Fabian
+            ['e4','julen',['late','mid','mid','vacation','vacation','vacation','vacation']], // Rocio
+            // Hotel Alpenhof (lila)
+            ['e5','alpenhof',['late','late','late','late','late','free','free']],        // Karin
+            ['e6','alpenhof',['late','free','free','late','late','late','late']],        // Anano
+            ['e7','alpenhof',['early','early','early','absent','absent','absent','absent']], // Lea (— = absent ab Do)
+            ['e8','alpenhof',['free','free','early','early','early','early','early']]   // Klaudia
         ], sched);
 
         state.schedule = sched;
@@ -877,9 +786,9 @@
         // Rocio: Ferien KW 16 Do-So
         state.absences.push({ id: generateId(), employeeId: 'e4', type: 'vacation',
             startDate: formatDate(kw16[3]), endDate: formatDate(kw16[6]), note: 'Ferien' });
-        // Lea: ausgetreten ab KW 16 Do
+        // Lea: geht am 15.04 (Mi), ab Do absent
         state.absences.push({ id: generateId(), employeeId: 'e7', type: 'other',
-            startDate: formatDate(kw16[3]), endDate: '2099-12-31', note: 'Ausgetreten' });
+            startDate: formatDate(kw16[3]), endDate: '2099-12-31', note: 'Ausgetreten ab 15.04.' });
     }
 
     // ========== TOAST ==========
