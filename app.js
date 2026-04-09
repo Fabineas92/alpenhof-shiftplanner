@@ -450,12 +450,12 @@
         { id: 'e2', name: 'Noemi', hotels: ['julen'], fixedShift: null, maxDays: 5, color: '#8b5cf6', defaultFreeDays: [0, 6], dayShifts: {}, order: 1 },
         { id: 'e3', name: 'Fabian', hotels: ['julen'], fixedShift: null, maxDays: 5, color: '#22c55e', defaultFreeDays: [0, 1], dayShifts: {}, order: 2 },
         { id: 'e4', name: 'Rocio', hotels: ['julen', 'alpenhof'], fixedShift: null, maxDays: 5, color: '#f59e0b', defaultFreeDays: [5, 6], dayShifts: {}, order: 3 },
-        { id: 'e9', name: 'Alisa', hotels: ['julen'], fixedShift: 'day', maxDays: 5, color: '#06b6d4', defaultFreeDays: [], dayShifts: {}, order: 4 },
+        { id: 'e9', name: 'Alisa', hotels: ['julen'], fixedShift: 'day', maxDays: 5, color: '#06b6d4', defaultFreeDays: [], dayShifts: {}, order: 4, excludeFromCoverage: true },
         { id: 'e5', name: 'Karin', hotels: ['alpenhof'], fixedShift: null, maxDays: 5, color: '#ec4899', defaultFreeDays: [5, 6], dayShifts: {}, order: 5 },
         { id: 'e6', name: 'Anano', hotels: ['alpenhof'], fixedShift: null, maxDays: 5, color: '#14b8a6', defaultFreeDays: [1, 2], dayShifts: {}, order: 6 },
         { id: 'e7', name: 'Lea', hotels: ['alpenhof'], fixedShift: null, maxDays: 3, color: '#f97316', defaultFreeDays: [3, 4, 5, 6], dayShifts: {}, order: 7 },
         { id: 'e8', name: 'Klaudia', hotels: ['alpenhof'], fixedShift: null, maxDays: 5, color: '#6366f1', defaultFreeDays: [0, 1], dayShifts: {}, order: 8 },
-        { id: 'e10', name: 'Jenny', hotels: ['alpenhof'], fixedShift: 'day', maxDays: 5, color: '#d946ef', defaultFreeDays: [5, 6], dayShifts: {}, order: 9 },
+        { id: 'e10', name: 'Jenny', hotels: ['alpenhof'], fixedShift: 'day', maxDays: 5, color: '#d946ef', defaultFreeDays: [5, 6], dayShifts: {}, order: 9, excludeFromCoverage: true },
         { id: 'e11', name: 'Anja', hotels: ['julen', 'alpenhof'], fixedShift: 'school', maxDays: 5, color: '#94a3b8', defaultFreeDays: [5, 6], dayShifts: {}, order: 10 },
         { id: 'e12', name: 'Olya', hotels: ['alpenhof'], fixedShift: 'school', maxDays: 5, color: '#78716c', defaultFreeDays: [5, 6], dayShifts: {}, order: 11 }
     ];
@@ -573,7 +573,10 @@
     }
 
     // ========== PERSISTENCE ==========
+    let saveTimer = null;
+
     function saveState() {
+        // Save to localStorage immediately (cache)
         const toSave = {
             hotels: state.hotels,
             shiftTypes: state.shiftTypes,
@@ -583,9 +586,49 @@
             settings: state.settings
         };
         localStorage.setItem('schichtplan_data', JSON.stringify(toSave));
+
+        // Debounced save to Supabase (500ms)
+        if (saveTimer) clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => {
+            if (window.db) {
+                window.db.saveAll(state).then(() => {
+                    console.log('Supabase sync OK');
+                }).catch(err => {
+                    console.error('Supabase sync error:', err);
+                });
+            }
+        }, 500);
     }
 
-    function loadState() {
+    async function loadState() {
+        state.currentWeekStart = getMonday(new Date());
+
+        // Try Supabase first
+        if (window.db) {
+            try {
+                const remote = await window.db.loadAll();
+                if (remote && remote.employees && remote.employees.length > 0) {
+                    state.hotels = remote.hotels.length > 0 ? remote.hotels : DEFAULT_HOTELS;
+                    state.shiftTypes = remote.shiftTypes.length > 0 ? remote.shiftTypes : DEFAULT_SHIFT_TYPES;
+                    state.employees = remote.employees;
+                    state.schedule = remote.schedule || {};
+                    state.absences = remote.absences || [];
+                    state.settings = { ...DEFAULT_SETTINGS, ...(remote.settings || {}) };
+                    // Cache locally
+                    localStorage.setItem('schichtplan_data', JSON.stringify({
+                        hotels: state.hotels, shiftTypes: state.shiftTypes,
+                        employees: state.employees, schedule: state.schedule,
+                        absences: state.absences, settings: state.settings
+                    }));
+                    console.log('Loaded from Supabase');
+                    return;
+                }
+            } catch (err) {
+                console.warn('Supabase load failed, using local:', err);
+            }
+        }
+
+        // Fallback: localStorage
         const raw = localStorage.getItem('schichtplan_data');
         if (raw) {
             try {
@@ -601,8 +644,11 @@
             }
         } else {
             initDefaults();
+            // First time: push defaults to Supabase
+            if (window.db) {
+                window.db.saveAll(state).then(() => console.log('Defaults synced to Supabase')).catch(() => {});
+            }
         }
-        state.currentWeekStart = getMonday(new Date());
     }
 
     function initDefaults() {
@@ -619,58 +665,94 @@
         const sched = {};
         week.forEach(d => { sched[formatDate(d)] = {}; });
 
-        // Hotel Julen
-        const assignments = [
-            ['e1', 'julen', ['early','early','early','free','free','late','late']],
-            ['e2', 'julen', ['free','late','late','late','late','late','free']],
-            ['e3', 'julen', ['free','free','early','early','early','early','early']],
-            ['e4', 'julen', ['late','mid','mid','vacation','vacation','vacation','vacation']],
-            ['e9', 'julen', ['day','day','day','day','day','free','free']],
+        // KW 16 (13.04-19.04) from real schedule
+        const week2 = getWeekDays(addDays(getMonday(new Date()), 7));
+        const sched2 = {};
+
+        // Helper to fill both weeks
+        function fillWeekData(wk, target) {
+            wk.forEach(d => { if (!target[formatDate(d)]) target[formatDate(d)] = {}; });
+        }
+        fillWeekData(week, sched);
+        fillWeekData(week2, sched);
+
+        // === CURRENT WEEK (KW 15: 06.04-12.04) from screenshot ===
+        const cw = [ // [empId, hotel, [Mo,Di,Mi,Do,Fr,Sa,So]]
+            // Hotel Julen
+            ['e1', 'julen', ['early','late','early','free','free','late','early']],
+            ['e2', 'julen', ['free','early','late','early','early','early','free']],
+            ['e3', 'julen', ['free','free','early','early','early','mid','late']],
+            ['e4', 'julen', ['late','mid','mid','late','late','mid','early']],
+            ['e9', 'julen', ['free','day','day','day','free','free','free']],
             ['e11', 'julen', ['school','school','school','school','school','free','free']],
             // Hotel Alpenhof
-            ['e5', 'alpenhof', ['late','late','late','late','late','free','free']],
-            ['e6', 'alpenhof', ['late','free','free','late','late','late','late']],
-            ['e7', 'alpenhof', ['early','absent','absent','absent','absent','absent','absent']],
-            ['e8', 'alpenhof', ['free','free','early','early','early','early','early']],
+            ['e5', 'alpenhof', ['late','late','early','early','late','late','late']],
+            ['e6', 'alpenhof', ['late','late','late','day','free','free','late']],
+            ['e7', 'alpenhof', ['early','free','free','early','early','early','free']],
+            ['e8', 'alpenhof', ['free','free','late','late','late','early','early']],
             ['e10', 'alpenhof', ['day','day','day','day','day','free','free']],
-            ['e12', 'alpenhof', ['school','school','school','school','school','free','free']],
+            ['e12', 'alpenhof', ['school','school','school','school','school','school','free']],
             ['e11', 'alpenhof', ['school','school','school','school','school','free','free']]
         ];
 
-        assignments.forEach(([empId, hotel, shifts]) => {
-            shifts.forEach((shift, i) => {
-                const dateKey = formatDate(week[i]);
-                if (!sched[dateKey]) sched[dateKey] = {};
-                if (shift === 'free') {
-                    sched[dateKey][empId] = { hotel, shiftTypeId: 'free' };
-                } else if (shift === 'vacation') {
-                    sched[dateKey][empId] = { hotel, shiftTypeId: 'vacation' };
-                } else if (shift === 'absent') {
-                    sched[dateKey][empId] = { hotel, shiftTypeId: 'absent' };
-                } else {
-                    sched[dateKey][empId] = { hotel, shiftTypeId: shift };
-                }
+        // === NEXT WEEK (KW 16: 13.04-19.04) from screenshot ===
+        const nw = [
+            // Hotel Julen
+            ['e1', 'julen', ['early','late','early','free','free','late','early']],
+            ['e2', 'julen', ['free','early','late','early','early','early','free']],
+            ['e3', 'julen', ['free','free','early','half_early','free','mid','late']],
+            ['e4', 'julen', ['late','mid','mid','vacation','vacation','vacation','vacation']],
+            ['e9', 'julen', ['free','day','day','day','free','free','free']],
+            ['e11', 'julen', ['day','mid','vacation','vacation','vacation','vacation','vacation']],
+            // Hotel Alpenhof
+            ['e5', 'alpenhof', ['late','late','early','early','late','late','late']],
+            ['e6', 'alpenhof', ['mid','mid','mid','free','free','free','mid']],
+            ['e7', 'alpenhof', ['early','early','free','early','early','early','free']],
+            ['e8', 'alpenhof', ['free','free','late','late','late','early','early']],
+            ['e10', 'alpenhof', ['day','day','day','day','day','free','free']],
+            ['e12', 'alpenhof', ['school','school','school','school','school','school','free']],
+            ['e11', 'alpenhof', ['school','school','school','school','school','school','free']]
+        ];
+
+        function applyWeekAssignments(weekDays, assignments, target) {
+            assignments.forEach(([empId, hotel, shifts]) => {
+                shifts.forEach((shift, i) => {
+                    const dateKey = formatDate(weekDays[i]);
+                    if (!target[dateKey]) target[dateKey] = {};
+                    if (shift === 'free') {
+                        target[dateKey][empId] = { hotel, shiftTypeId: 'free' };
+                    } else if (shift === 'vacation') {
+                        target[dateKey][empId] = { hotel, shiftTypeId: 'vacation' };
+                    } else if (shift === 'absent') {
+                        target[dateKey][empId] = { hotel, shiftTypeId: 'absent' };
+                    } else {
+                        target[dateKey][empId] = { hotel, shiftTypeId: shift };
+                    }
+                });
             });
-        });
+        }
+
+        applyWeekAssignments(week, cw, sched);
+        applyWeekAssignments(week2, nw, sched);
 
         state.schedule = sched;
-        // Rocio: Ferien ab Mittwoch der aktuellen Woche
+
+        // Rocio/Anja: Ferien in KW 16 (Do-So)
         state.absences.push({
             id: generateId(),
             employeeId: 'e4',
             type: 'vacation',
-            startDate: formatDate(week[2]),
-            endDate: formatDate(week[6]),
+            startDate: formatDate(week2[3]),
+            endDate: formatDate(week2[6]),
             note: 'Ferien'
         });
-        // Lea: nur Montag, danach absent
         state.absences.push({
             id: generateId(),
-            employeeId: 'e7',
-            type: 'other',
-            startDate: formatDate(week[1]),
-            endDate: '2099-12-31',
-            note: 'Ausgetreten'
+            employeeId: 'e11',
+            type: 'vacation',
+            startDate: formatDate(week2[2]),
+            endDate: formatDate(week2[6]),
+            note: 'Ferien'
         });
     }
 
@@ -789,7 +871,13 @@
         hotelsToShow.forEach(hotel => {
             const hotelEmployees = state.employees
                 .filter(e => e.hotels.includes(hotel.id))
-                .sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
+                .sort((a, b) => {
+                    // excludeFromCoverage employees always at bottom
+                    if (a.excludeFromCoverage && !b.excludeFromCoverage) return 1;
+                    if (!a.excludeFromCoverage && b.excludeFromCoverage) return -1;
+                    // Alphabetical within each group
+                    return a.name.localeCompare(b.name);
+                });
             html += renderHotelTable(hotel, hotelEmployees, weekDays);
         });
 
@@ -1111,6 +1199,7 @@
             const dateStr = formatDate(day);
             let count = 0;
             employees.forEach(emp => {
+                if (emp.excludeFromCoverage) return;
                 const a = (state.schedule[dateStr] || {})[emp.id];
                 if (a && a.hotel === hotel.id && a.shiftTypeId !== 'free' && a.shiftTypeId !== 'vacation' && a.shiftTypeId !== 'sick' && a.shiftTypeId !== 'absent') {
                     count++;
@@ -1801,7 +1890,12 @@
         const container = document.getElementById('employees-list');
         let html = '';
 
-        state.employees.forEach(emp => {
+        const sortedEmps = [...state.employees].sort((a, b) => {
+            if (a.excludeFromCoverage && !b.excludeFromCoverage) return 1;
+            if (!a.excludeFromCoverage && b.excludeFromCoverage) return -1;
+            return a.name.localeCompare(b.name);
+        });
+        sortedEmps.forEach(emp => {
             const hotelTags = emp.hotels.map(hid => {
                 const h = state.hotels.find(x => x.id === hid);
                 return `<span class="tag ${hid}">${h ? h.name : hid}</span>`;
@@ -2316,6 +2410,7 @@
                 const dateStr = formatDate(day);
                 let count = 0;
                 hotelEmps.forEach(emp => {
+                    if (emp.excludeFromCoverage) return;
                     const a = (state.schedule[dateStr] || {})[emp.id];
                     if (a && a.shiftTypeId !== 'free' && a.shiftTypeId !== 'vacation' && a.shiftTypeId !== 'sick' && a.shiftTypeId !== 'absent') count++;
                 });
@@ -2513,8 +2608,8 @@
     }
 
     // ========== INIT ==========
-    function init() {
-        loadState();
+    async function init() {
+        await loadState();
         initNav();
         initScheduleControls();
         initSettings();
