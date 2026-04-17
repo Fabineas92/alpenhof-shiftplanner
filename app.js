@@ -637,7 +637,10 @@
             schedule: state.schedule,
             employees: state.employees,
             absences: state.absences,
-            shiftTypes: state.shiftTypes
+            shiftTypes: state.shiftTypes,
+            rules: state.rules,
+            vacationRequests: state.vacationRequests,
+            hotels: state.hotels
         }));
         if (undoStack.length > MAX_UNDO) undoStack.shift();
     }
@@ -649,8 +652,12 @@
         state.employees = prev.employees;
         state.absences = prev.absences;
         state.shiftTypes = prev.shiftTypes;
-        saveState();
-        renderSchedule();
+        state.rules = prev.rules || [];
+        state.vacationRequests = prev.vacationRequests || [];
+        state.hotels = prev.hotels || state.hotels;
+        saveState(true); // skip pushing another undo
+        if (state.currentView === 'schedule') renderSchedule();
+        else switchView(state.currentView);
         showToast('Rueckgaengig gemacht', 'success');
     }
 
@@ -1340,7 +1347,21 @@
             const cov = state.settings.minCoverage;
             const min = (typeof cov === 'object') ? (cov[hotel.id] || 2) : (cov || 2);
             const cls = count >= min ? 'coverage-good' : count > 0 ? 'coverage-warn' : 'coverage-bad';
-            html += `<td class="${cls}">${count}/${min}</td>`;
+            let tooltip = '';
+            if (count < min) {
+                // Find available employees (free or no entry)
+                const available = employees.filter(emp => {
+                    if (emp.excludeFromCoverage) return false;
+                    const a = (state.schedule[dateStr] || {})[emp.id];
+                    return !a || a.shiftTypeId === 'free';
+                }).map(e => e.name);
+                if (available.length > 0) {
+                    tooltip = `Verfuegbar: ${available.join(', ')}`;
+                } else {
+                    tooltip = 'Keine verfuegbaren Mitarbeiter!';
+                }
+            }
+            html += `<td class="${cls}" ${tooltip ? `title="${tooltip}" style="cursor:help"` : ''}>${count}/${min}</td>`;
         });
         html += `<td></td></tr>`;
 
@@ -1513,6 +1534,32 @@
         const dayIdx = (day.getDay() + 6) % 7;
         const current = (state.schedule[dateStr] || {})[empId];
 
+        // Check previous and next day shifts for rest warnings
+        const prevDate = formatDate(addDays(day, -1));
+        const nextDate = formatDate(addDays(day, 1));
+        const prevA = (state.schedule[prevDate] || {})[empId];
+        const nextA = (state.schedule[nextDate] || {})[empId];
+        const prevShift = prevA ? state.shiftTypes.find(s => s.id === prevA.shiftTypeId) : null;
+        const nextShift = nextA ? state.shiftTypes.find(s => s.id === nextA.shiftTypeId) : null;
+        const minRest = state.settings.minRestHours || 11;
+
+        function getRestWarning(st) {
+            const warnings = [];
+            if (prevShift) {
+                const [peh, pem] = prevShift.end.split(':').map(Number);
+                const [csh, csm] = st.start.split(':').map(Number);
+                const restH = (csh * 60 + csm + 24 * 60 - peh * 60 - pem) / 60;
+                if (restH < minRest) warnings.push(`⚠ Nur ${restH.toFixed(0)}h Ruhe nach ${DAY_NAMES[dayIdx > 0 ? dayIdx-1 : 6]} (min. ${minRest}h)`);
+            }
+            if (nextShift) {
+                const [eh, em] = st.end.split(':').map(Number);
+                const [nsh, nsm] = nextShift.start.split(':').map(Number);
+                const restH = (nsh * 60 + nsm + 24 * 60 - eh * 60 - em) / 60;
+                if (restH < minRest) warnings.push(`⚠ Nur ${restH.toFixed(0)}h Ruhe vor ${DAY_NAMES[(dayIdx+1) % 7]} (min. ${minRest}h)`);
+            }
+            return warnings;
+        }
+
         let html = `<p style="margin-bottom:12px;font-size:13px;color:var(--text-muted)">
             ${emp.name} &mdash; ${DAY_NAMES_FULL[dayIdx]}, ${formatDateFull(dateStr)}</p>
             <div class="shift-picker">`;
@@ -1520,11 +1567,14 @@
         state.shiftTypes.forEach(st => {
             const sel = current && current.shiftTypeId === st.id ? 'selected' : '';
             const hours = calcShiftHours(st);
+            const warns = getRestWarning(st);
+            const warnHtml = warns.length > 0 ? `<div style="color:var(--danger);font-size:10px;margin-top:2px">${warns.join('<br>')}</div>` : '';
             html += `<div class="shift-option ${sel}" data-shift="${st.id}">
                 <span class="dot" style="background:${st.color}"></span>
                 <div class="shift-info">
                     <div class="shift-name">${st.name}</div>
                     <div class="shift-hours">${st.start} - ${st.end} (${hours.toFixed(1)}h)</div>
+                    ${warnHtml}
                 </div></div>`;
         });
 
@@ -1585,8 +1635,26 @@
             </button>
         </div>`;
 
+        // Swap button
+        if (current && current.shiftTypeId !== 'free' && current.shiftTypeId !== 'vacation' && current.shiftTypeId !== 'sick' && current.shiftTypeId !== 'absent') {
+            const otherEmps = state.employees.filter(e => e.id !== empId && e.hotels.includes(hotelId));
+            if (otherEmps.length > 0) {
+                html += `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+                    <p style="font-size:11px;color:var(--text-dim);margin-bottom:6px">Schicht tauschen mit:</p>
+                    <select id="swap-target" style="width:100%;padding:6px 8px;background:var(--bg-input);border:1px solid var(--border);color:var(--text);border-radius:var(--radius);font-size:12px;margin-bottom:6px">
+                        ${otherEmps.map(e => {
+                            const ea = (state.schedule[dateStr] || {})[e.id];
+                            const eShift = ea ? (ea.shiftTypeId === 'free' ? 'Frei' : state.shiftTypes.find(s => s.id === ea.shiftTypeId)?.name || ea.shiftTypeId) : 'Keine Schicht';
+                            return `<option value="${e.id}">${e.name} (${eShift})</option>`;
+                        }).join('')}
+                    </select>
+                    <button class="btn-secondary" id="btn-swap-shift" style="width:100%;justify-content:center">Tauschen</button>
+                </div>`;
+            }
+        }
+
         // Batch fill option
-        html += `<div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
+        html += `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
             <label class="checkbox-label" style="margin-bottom:8px">
                 <input type="checkbox" id="fill-rest-of-week">
                 Restliche Woche gleich füllen
@@ -1618,6 +1686,24 @@
                 newShiftBtn.addEventListener('click', () => {
                     closeModal();
                     openShiftFormInline(empId, dateStr, hotelId);
+                });
+            }
+            const swapBtn = document.getElementById('btn-swap-shift');
+            if (swapBtn) {
+                swapBtn.addEventListener('click', () => {
+                    const targetId = document.getElementById('swap-target').value;
+                    if (!targetId) return;
+                    if (!state.schedule[dateStr]) state.schedule[dateStr] = {};
+                    const myShift = state.schedule[dateStr][empId];
+                    const theirShift = state.schedule[dateStr][targetId];
+                    // Swap
+                    state.schedule[dateStr][empId] = theirShift ? { ...theirShift } : { hotel: hotelId, shiftTypeId: 'free' };
+                    state.schedule[dateStr][targetId] = myShift ? { ...myShift } : { hotel: hotelId, shiftTypeId: 'free' };
+                    saveState();
+                    closeModal();
+                    renderSchedule();
+                    const targetName = state.employees.find(e => e.id === targetId)?.name || '?';
+                    showToast(`Schicht getauscht: ${emp.name} ↔ ${targetName}`, 'success');
                 });
             }
         }, 50);
@@ -1787,6 +1873,28 @@
 
     // ========== AUTO-FILL ==========
     function autoFillWeek() {
+        openModal('Auto-Fill Optionen', `
+            <label class="checkbox-label" style="margin-bottom:12px">
+                <input type="checkbox" id="autofill-empty-only" checked>
+                Nur leere Zellen fuellen (bestehende Schichten behalten)
+            </label>
+            <label class="checkbox-label" style="margin-bottom:12px">
+                <input type="checkbox" id="autofill-respect-rest" checked>
+                Ruhezeiten beachten (min. ${state.settings.minRestHours || 11}h)
+            </label>
+            <label class="checkbox-label" style="margin-bottom:12px">
+                <input type="checkbox" id="autofill-shift-free" checked>
+                Freitage verschieben wenn noetig (bei Unterbesetzung)
+            </label>
+        `, () => {
+            const emptyOnly = document.getElementById('autofill-empty-only').checked;
+            const respectRest = document.getElementById('autofill-respect-rest').checked;
+            const shiftFree = document.getElementById('autofill-shift-free').checked;
+            doAutoFill(emptyOnly, respectRest, shiftFree);
+        }, { saveText: 'Auto-Fill starten' });
+    }
+
+    function doAutoFill(emptyOnly, respectRest, shiftFree) {
         const weekDays = getWeekDays(state.currentWeekStart);
 
         state.hotels.forEach(hotel => {
@@ -1839,18 +1947,45 @@
                     if (absence) return;
 
                     const existing = (state.schedule[dateStr] || {})[emp.id];
-                    if (existing) return;
+                    if (existing && emptyOnly) return; // Skip filled cells in empty-only mode
 
                     // Default free day for this employee
-                    if (empFreeDays.includes(i)) {
+                    if (!existing && empFreeDays.includes(i)) {
                         applyShift(emp.id, dateStr, hotel.id, 'free');
                         return;
+                    }
+
+                    if (existing && !emptyOnly) {
+                        // Overwrite mode — but count existing work shifts
+                        if (existing.shiftTypeId !== 'free' && existing.shiftTypeId !== 'vacation' && existing.shiftTypeId !== 'sick' && existing.shiftTypeId !== 'absent') {
+                            assigned++;
+                        }
+                        return;
+                    }
+
+                    // Rest time check
+                    if (respectRest && i > 0) {
+                        const prevDate = formatDate(weekDays[i - 1]);
+                        const prevA = (state.schedule[prevDate] || {})[emp.id];
+                        if (prevA && prevA.shiftTypeId !== 'free' && prevA.shiftTypeId !== 'vacation' && prevA.shiftTypeId !== 'sick' && prevA.shiftTypeId !== 'absent') {
+                            const prevShift = state.shiftTypes.find(s => s.id === prevA.shiftTypeId);
+                            const candidateShift = state.shiftTypes.find(s => s.id === (empDayShifts[i] || preferredShift));
+                            if (prevShift && candidateShift) {
+                                const [peh, pem] = prevShift.end.split(':').map(Number);
+                                const [csh, csm] = candidateShift.start.split(':').map(Number);
+                                const restH = (csh * 60 + csm + 24 * 60 - peh * 60 - pem) / 60;
+                                if (restH < (state.settings.minRestHours || 11)) {
+                                    // Not enough rest — assign free instead
+                                    applyShift(emp.id, dateStr, hotel.id, 'free');
+                                    return;
+                                }
+                            }
+                        }
                     }
 
                     if (assigned >= maxDays) {
                         applyShift(emp.id, dateStr, hotel.id, 'free');
                     } else {
-                        // Use day-specific shift if set, otherwise preferred
                         const shiftForDay = empDayShifts[i] || preferredShift;
                         applyShift(emp.id, dateStr, hotel.id, shiftForDay);
                         assigned++;
@@ -1984,6 +2119,45 @@
             });
         });
 
+        // === FREE DAY SHIFT PASS: If still understaffed, move free days ===
+        if (shiftFree) {
+            weekDays.forEach((day, i) => {
+                const dateStr = formatDate(day);
+                state.hotels.forEach(hotel => {
+                    const covObj = state.settings.minCoverage;
+                    const minCov = (typeof covObj === 'object') ? (covObj[hotel.id] || 2) : (covObj || 2);
+                    const hotelEmps = state.employees.filter(e => e.hotels.includes(hotel.id) && !e.excludeFromCoverage);
+                    let working = 0;
+                    hotelEmps.forEach(emp => {
+                        const a = (state.schedule[dateStr] || {})[emp.id];
+                        if (a && a.hotel === hotel.id && a.shiftTypeId !== 'free' && a.shiftTypeId !== 'vacation' && a.shiftTypeId !== 'sick' && a.shiftTypeId !== 'absent') working++;
+                    });
+
+                    if (working < minCov) {
+                        // Find employees with "free" on this day who could work
+                        const freeEmps = hotelEmps.filter(emp => {
+                            const a = (state.schedule[dateStr] || {})[emp.id];
+                            return a && a.hotel === hotel.id && a.shiftTypeId === 'free';
+                        });
+                        for (const emp of freeEmps) {
+                            if (working >= minCov) break;
+                            // Check they haven't exceeded maxDays
+                            let empWorkDays = 0;
+                            weekDays.forEach(d => {
+                                const a2 = (state.schedule[formatDate(d)] || {})[emp.id];
+                                if (a2 && a2.shiftTypeId !== 'free' && a2.shiftTypeId !== 'vacation' && a2.shiftTypeId !== 'sick' && a2.shiftTypeId !== 'absent') empWorkDays++;
+                            });
+                            if (empWorkDays >= (emp.maxDays || 5)) continue;
+
+                            const shift = emp.fixedShift || (emp.dayShifts || {})[i] || state.shiftTypes[0]?.id || 'early';
+                            state.schedule[dateStr][emp.id] = { hotel: hotel.id, shiftTypeId: shift };
+                            working++;
+                        }
+                    }
+                });
+            });
+        }
+
         saveState();
         renderSchedule();
         showToast('Woche automatisch gefüllt & optimiert', 'success');
@@ -2108,6 +2282,53 @@
                 </div>
             </div>`;
         });
+
+        // === COMPLIANCE REPORT ===
+        const violations = [];
+        const minRest = state.settings.minRestHours || 11;
+
+        empStats.forEach(s => {
+            // Overtime check
+            if (s.hours > 45) violations.push({ emp: s.emp.name, type: 'overtime', text: `${s.hours.toFixed(1)}h/Woche (max. 45h)` });
+
+            // Rest period check
+            for (let di = 1; di < days.length; di++) {
+                const prevA = (state.schedule[formatDate(days[di-1])] || {})[s.emp.id];
+                const currA = (state.schedule[formatDate(days[di])] || {})[s.emp.id];
+                if (!prevA || !currA) continue;
+                const isWork = id => id !== 'free' && id !== 'vacation' && id !== 'sick' && id !== 'absent';
+                if (!isWork(prevA.shiftTypeId) || !isWork(currA.shiftTypeId)) continue;
+                const ps = state.shiftTypes.find(x => x.id === prevA.shiftTypeId);
+                const cs = state.shiftTypes.find(x => x.id === currA.shiftTypeId);
+                if (!ps || !cs) continue;
+                const [peh,pem] = ps.end.split(':').map(Number);
+                const [csh,csm] = cs.start.split(':').map(Number);
+                const rest = (csh*60+csm+24*60-peh*60-pem)/60;
+                if (rest < minRest) {
+                    violations.push({ emp: s.emp.name, type: 'rest', text: `Nur ${rest.toFixed(0)}h Ruhe (${formatDateShort(days[di-1])}→${formatDateShort(days[di])}, min. ${minRest}h)` });
+                }
+            }
+
+            // Max days check
+            const maxD = s.emp.maxDays || 5;
+            if (s.shifts > maxD) violations.push({ emp: s.emp.name, type: 'days', text: `${s.shifts} Arbeitstage (max. ${maxD})` });
+        });
+
+        if (violations.length > 0) {
+            html += `<div class="stat-card" style="grid-column:1/-1;border-color:var(--danger)">
+                <h4 style="color:var(--danger)">Compliance-Report (${violations.length} Verstösse)</h4>
+                <div style="margin-top:8px">
+                    ${violations.map(v => `<div style="padding:6px 10px;margin-bottom:4px;background:var(--danger-bg);border-radius:4px;font-size:12px;border-left:3px solid var(--danger)">
+                        <strong>${v.emp}</strong>: ${v.text}
+                    </div>`).join('')}
+                </div>
+            </div>`;
+        } else {
+            html += `<div class="stat-card" style="grid-column:1/-1;border-color:var(--success)">
+                <h4 style="color:var(--success)">Compliance-Report</h4>
+                <p style="color:var(--text-muted);font-size:13px;margin-top:4px">Keine Verstoesse gefunden. Alle Mitarbeiter innerhalb der Grenzwerte.</p>
+            </div>`;
+        }
 
         container.innerHTML = html;
     }
@@ -2434,6 +2655,20 @@
 
             if (!startDate || !endDate) { showToast('Datum ist erforderlich', 'error'); return false; }
             if (startDate > endDate) { showToast('Enddatum muss nach Startdatum sein', 'error'); return false; }
+
+            // Count existing shifts that will be overwritten
+            let conflictCount = 0;
+            let cd = parseDate(startDate);
+            const cEnd = parseDate(endDate);
+            while (cd <= cEnd) {
+                const ds = formatDate(cd);
+                const a = (state.schedule[ds] || {})[employeeId];
+                if (a && a.shiftTypeId !== 'free' && a.shiftTypeId !== 'vacation' && a.shiftTypeId !== 'sick' && a.shiftTypeId !== 'absent') conflictCount++;
+                cd = addDays(cd, 1);
+            }
+            if (conflictCount > 0 && !isEdit) {
+                if (!confirm(`Achtung: ${conflictCount} bestehende Schicht(en) werden ueberschrieben. Fortfahren?`)) return false;
+            }
 
             if (isEdit) {
                 // Clear old schedule entries

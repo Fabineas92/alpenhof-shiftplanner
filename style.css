@@ -1038,9 +1038,9 @@ nav {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     font-variant-numeric: tabular-nums;
 }
-.coverage-good { color: var(--success) !important; }
-.coverage-warn { color: var(--warning) !important; }
-.coverage-bad { color: var(--danger) !important; }
+.coverage-good { color: var(--success) !important; background: var(--success-bg); }
+.coverage-warn { color: var(--warning) !important; background: var(--warning-bg); font-weight: 700; }
+.coverage-bad { color: var(--danger) !important; background: var(--danger-bg); font-weight: 700; }
 
 /* Hours column */
 .hours-col {
