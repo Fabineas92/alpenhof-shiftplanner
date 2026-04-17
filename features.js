@@ -14,26 +14,67 @@
         const container = document.getElementById('vacation-container');
         if (!container) return;
         const state = window.appState;
-        const daysPerMonth = (state.settings.vacationDaysPerMonth) || 1.75; // ~21 days/year
-        const currentMonth = new Date().getMonth(); // 0-11
+        const daysPerMonth = state.settings.vacationDaysPerMonth || 1.75;
+        const freeDaysPerMonth = state.settings.freeDaysPerMonth || 8; // L-GAV Standard
+        const currentMonth = new Date().getMonth();
         const monthsElapsed = currentMonth + 1;
 
+        // === SETTINGS ===
         let html = `<div class="settings-group" style="margin-bottom:16px">
-            <h3>Einstellungen</h3>
+            <h3>Einstellungen (L-GAV)</h3>
             <label class="setting-row">
                 <span>Ferientage pro Monat (Standard)</span>
                 <input type="number" id="vacation-days-per-month" step="0.25" min="0" max="5" value="${daysPerMonth}" style="width:80px">
             </label>
+            <label class="setting-row">
+                <span>Freitage pro Monat (L-GAV Vertrag)</span>
+                <input type="number" id="free-days-per-month" step="1" min="0" max="15" value="${freeDaysPerMonth}" style="width:80px">
+            </label>
+            <p style="font-size:10px;color:var(--text-dim);margin-top:4px">Gemaess L-GAV: 8 Freitage/Monat (Vollzeit). Siehe <a href="https://l-gav.ch" target="_blank" style="color:var(--primary)">l-gav.ch</a></p>
             <button class="btn-primary" id="btn-save-vacation-settings" style="margin-top:8px">Speichern</button>
         </div>`;
 
+        // === OFFENE TAGE PRO MITARBEITER ===
+        html += `<div class="settings-group" style="margin-bottom:16px">
+            <h3>Offene Ferientage (Startwerte)</h3>
+            <p style="font-size:11px;color:var(--text-dim);margin-bottom:8px">Trage hier die aktuell offenen Ferientage ein, wenn du mitten im Jahr anfaengst.</p>
+            <div class="cards-grid">`;
+
+        state.employees.sort((a, b) => a.name.localeCompare(b.name)).forEach(emp => {
+            html += `<div class="card" style="padding:10px">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+                    <div class="avatar" style="background:${emp.color};width:22px;height:22px;font-size:9px">${emp.name.split(' ').map(n=>n[0]).join('').slice(0,2)}</div>
+                    <strong style="font-size:12px">${emp.name}</strong>
+                </div>
+                <div style="display:flex;gap:8px">
+                    <div class="form-group" style="margin-bottom:0;flex:1">
+                        <label style="font-size:9px">Ferien offen</label>
+                        <input type="number" class="open-vacation-input" data-emp-id="${emp.id}" step="0.5" min="0" max="60" value="${emp.openVacationDays ?? ''}" placeholder="—" style="font-size:11px;padding:4px 6px">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;flex:1">
+                        <label style="font-size:9px">Freitage offen</label>
+                        <input type="number" class="open-free-input" data-emp-id="${emp.id}" step="1" min="0" max="60" value="${emp.openFreeDays ?? ''}" placeholder="—" style="font-size:11px;padding:4px 6px">
+                    </div>
+                </div>
+            </div>`;
+        });
+
+        html += `</div>
+            <button class="btn-primary" id="btn-save-open-days" style="margin-top:8px">Startwerte speichern</button>
+        </div>`;
+
+        // === UEBERSICHT TABELLE ===
         html += `<div class="table-container"><table class="data-table">
-            <thead><tr><th>Mitarbeiter</th><th>Position</th><th>Anspruch/Jahr</th><th>Freigeschaltet</th><th>Genommen</th><th>Saldo</th></tr></thead><tbody>`;
+            <thead><tr>
+                <th>Mitarbeiter</th><th>Position</th>
+                <th>Ferien/Jahr</th><th>Ferien offen</th><th>Ferien genommen</th><th>Ferien Saldo</th>
+                <th>Freitage/Monat</th><th>Freitage offen</th>
+            </tr></thead><tbody>`;
 
         state.employees.sort((a, b) => a.name.localeCompare(b.name)).forEach(emp => {
             const empDPM = emp.vacationDaysPerMonth || daysPerMonth;
             const yearEntitlement = Math.round(empDPM * 12 * 10) / 10;
-            const unlocked = Math.round(empDPM * monthsElapsed * 10) / 10;
+            const openVac = emp.openVacationDays ?? Math.round(empDPM * monthsElapsed * 10) / 10;
 
             // Count taken vacation days this year
             const yearStart = new Date().getFullYear() + '-01-01';
@@ -49,28 +90,47 @@
                 while (d <= end) { taken++; d.setDate(d.getDate() + 1); }
             });
 
-            const saldo = unlocked - taken;
+            const saldo = openVac - taken;
             const saldoColor = saldo >= 0 ? 'var(--success)' : 'var(--danger)';
+            const openFree = emp.openFreeDays ?? freeDaysPerMonth;
 
             html += `<tr>
-                <td><div class="employee-name-cell"><div class="avatar" style="background:${emp.color}">${emp.name.split(' ').map(n=>n[0]).join('').slice(0,2)}</div>${emp.name}</div></td>
-                <td style="color:var(--text-muted)">${emp.position || '—'}</td>
-                <td>${yearEntitlement} Tage</td>
-                <td>${unlocked} Tage</td>
-                <td>${taken} Tage</td>
-                <td style="color:${saldoColor};font-weight:600">${saldo >= 0 ? '+' : ''}${saldo} Tage</td>
+                <td><div class="employee-name-cell"><div class="avatar" style="background:${emp.color};width:20px;height:20px;font-size:9px">${emp.name.split(' ').map(n=>n[0]).join('').slice(0,2)}</div>${emp.name}</div></td>
+                <td style="color:var(--text-muted);font-size:11px">${emp.position || '—'}</td>
+                <td>${yearEntitlement}</td>
+                <td>${openVac}</td>
+                <td>${taken}</td>
+                <td style="color:${saldoColor};font-weight:600">${saldo >= 0 ? '+' : ''}${saldo}</td>
+                <td>${freeDaysPerMonth}/Mt</td>
+                <td>${openFree}</td>
             </tr>`;
         });
 
         html += '</tbody></table></div>';
         container.innerHTML = html;
 
+        // Save settings
         document.getElementById('btn-save-vacation-settings')?.addEventListener('click', () => {
-            const val = parseFloat(document.getElementById('vacation-days-per-month').value) || 1.75;
-            state.settings.vacationDaysPerMonth = val;
+            state.settings.vacationDaysPerMonth = parseFloat(document.getElementById('vacation-days-per-month').value) || 1.75;
+            state.settings.freeDaysPerMonth = parseInt(document.getElementById('free-days-per-month').value) || 8;
             window.saveStateExt();
             renderVacation();
-            window.showToastExt('Ferienkontigent gespeichert', 'success');
+            window.showToastExt('Einstellungen gespeichert', 'success');
+        });
+
+        // Save open days per employee
+        document.getElementById('btn-save-open-days')?.addEventListener('click', () => {
+            document.querySelectorAll('.open-vacation-input').forEach(inp => {
+                const emp = state.employees.find(e => e.id === inp.dataset.empId);
+                if (emp) emp.openVacationDays = inp.value !== '' ? parseFloat(inp.value) : undefined;
+            });
+            document.querySelectorAll('.open-free-input').forEach(inp => {
+                const emp = state.employees.find(e => e.id === inp.dataset.empId);
+                if (emp) emp.openFreeDays = inp.value !== '' ? parseInt(inp.value) : undefined;
+            });
+            window.saveStateExt();
+            renderVacation();
+            window.showToastExt('Startwerte gespeichert', 'success');
         });
     }
 

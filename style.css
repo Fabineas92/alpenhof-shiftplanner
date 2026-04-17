@@ -835,9 +835,10 @@ nav {
 /* Schedule cells */
 .shift-cell {
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-height: 38px;
+    min-height: 42px;
     border-radius: 6px;
     font-size: 12px;
     font-weight: 500;
@@ -870,8 +871,17 @@ nav {
 .shift-cell.absent { background: var(--shift-absent-bg); color: var(--shift-absent); border: 1px solid rgba(107,114,128,.15); }
 .shift-cell.custom { background: rgba(100,116,139,.12); color: #94a3b8; border: 1px solid rgba(100,116,139,.2); }
 
+.hotel-code {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: .5px;
+    opacity: .6;
+    display: block;
+    line-height: 1;
+    margin-bottom: 1px;
+}
 .shift-cell .shift-time {
-    font-size: 12px;
+    font-size: 11px;
     line-height: 1.2;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     font-variant-numeric: tabular-nums;

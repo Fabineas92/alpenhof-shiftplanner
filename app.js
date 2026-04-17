@@ -920,18 +920,22 @@
             ? state.hotels
             : state.hotels.filter(h => h.id === state.currentHotelFilter);
 
+        // Combined single table view
+        const allEmployees = [];
+        const seen = new Set();
         hotelsToShow.forEach(hotel => {
-            const hotelEmployees = state.employees
+            state.employees
                 .filter(e => e.hotels.includes(hotel.id))
-                .sort((a, b) => {
-                    // excludeFromCoverage employees always at bottom
-                    if (a.excludeFromCoverage && !b.excludeFromCoverage) return 1;
-                    if (!a.excludeFromCoverage && b.excludeFromCoverage) return -1;
-                    // Alphabetical within each group
-                    return a.name.localeCompare(b.name);
+                .forEach(e => {
+                    if (!seen.has(e.id)) { seen.add(e.id); allEmployees.push(e); }
                 });
-            html += renderHotelTable(hotel, hotelEmployees, weekDays);
         });
+        allEmployees.sort((a, b) => {
+            if (a.excludeFromCoverage && !b.excludeFromCoverage) return 1;
+            if (!a.excludeFromCoverage && b.excludeFromCoverage) return -1;
+            return a.name.localeCompare(b.name);
+        });
+        html += renderCombinedTable(allEmployees, weekDays, hotelsToShow);
 
         container.innerHTML = html;
         renderWeekSummary(weekDays);
@@ -1232,6 +1236,129 @@
                 });
             });
         }, 50);
+    }
+
+    // Hotel short codes
+    const HOTEL_SHORT = { julen: 'JU', alpenhof: 'AH' };
+
+    function renderCombinedTable(employees, weekDays, hotels) {
+        let html = `
+        <div class="hotel-section">
+            <div class="hotel-section-header">
+                <h3>${hotels.map(h => `<span class="hotel-badge ${h.id}"></span>${h.name}`).join(' & ')}</h3>
+                <span style="font-size:12px;color:var(--text-muted)">${employees.length} Mitarbeiter</span>
+            </div>
+            <table class="schedule-table">
+                <thead><tr>
+                    <th>Mitarbeiter</th>`;
+
+        weekDays.forEach((day, i) => {
+            const todayCls = isToday(day) ? ' today' : '';
+            const holiday = getHoliday(day);
+            const schoolHol = getSchoolHoliday(day);
+            let dayExtra = '';
+            let extraCls = todayCls;
+            if (holiday) { dayExtra = `<span class="day-holiday">${holiday}</span>`; extraCls += ' holiday'; }
+            if (schoolHol) { dayExtra += `<span class="day-school">Schulferien</span>`; }
+            html += `<th class="${extraCls}">${DAY_NAMES[i]}<span class="day-date">${formatDateShort(day)}</span>${dayExtra}</th>`;
+        });
+        html += `<th>Std.</th></tr></thead><tbody>`;
+
+        employees.forEach(emp => {
+            // Hide if entire week is absent
+            const allAbsent = weekDays.every(day => {
+                const a = (state.schedule[formatDate(day)] || {})[emp.id];
+                return a && a.shiftTypeId === 'absent';
+            });
+            if (allAbsent) return;
+
+            let weekHours = 0;
+            html += `<tr class="emp-row" draggable="true" data-emp-id="${emp.id}" data-hotel="${emp.hotels[0] || 'julen'}"><td><div class="employee-name-cell">
+                <span class="drag-handle" title="Reihenfolge aendern">&#x2630;</span>
+                <div class="avatar" style="background:${emp.color}">${getInitials(emp.name)}</div>
+                ${emp.name}
+                <button class="btn-remove-emp" data-emp-id="${emp.id}" data-hotel="${emp.hotels[0] || 'julen'}" title="Vom Schichtplan entfernen">&times;</button>
+            </div></td>`;
+
+            weekDays.forEach(day => {
+                const dateStr = formatDate(day);
+                const assignment = (state.schedule[dateStr] || {})[emp.id];
+                const absence = getAbsenceForDate(emp.id, dateStr);
+
+                if (assignment && assignment.shiftTypeId !== 'free' && assignment.shiftTypeId !== 'vacation' &&
+                    assignment.shiftTypeId !== 'sick' && assignment.shiftTypeId !== 'absent') {
+                    // Show hotel code (AH/JU) above shift time
+                    const hotelCode = HOTEL_SHORT[assignment.hotel] || '?';
+                    const shiftType = state.shiftTypes.find(s => s.id === assignment.shiftTypeId);
+                    if (shiftType) {
+                        const dayHours = calcShiftHours(shiftType);
+                        weekHours += dayHours;
+
+                        // Check for split shift
+                        let splitHtml = '';
+                        if (assignment.shiftTypeId2) {
+                            const st2 = state.shiftTypes.find(s => s.id === assignment.shiftTypeId2);
+                            if (st2) {
+                                weekHours += calcShiftHours(st2);
+                                splitHtml = `<span class="shift-time">${st2.start}-${st2.end}</span>`;
+                            }
+                        }
+
+                        html += `<td><div class="shift-cell ${shiftType.cssClass}" data-employee="${emp.id}" data-date="${dateStr}" data-hotel="${assignment.hotel}">
+                            <span class="hotel-code">${hotelCode}</span>
+                            <span class="shift-time">${shiftType.start}-${shiftType.end}</span>
+                            ${splitHtml}
+                            <span class="shift-day-hours">${(dayHours + (assignment.shiftTypeId2 ? calcShiftHours(state.shiftTypes.find(s=>s.id===assignment.shiftTypeId2)||{}) : 0)).toFixed(1)}h</span>
+                        </div></td>`;
+                    } else {
+                        html += `<td>${renderShiftCell(emp, dateStr, assignment.hotel, assignment, absence)}</td>`;
+                    }
+                } else {
+                    html += `<td>${renderShiftCell(emp, dateStr, emp.hotels[0] || 'julen', assignment, absence)}</td>`;
+                }
+            });
+
+            html += `<td class="hours-col">${weekHours.toFixed(1)}h</td></tr>`;
+        });
+
+        // Add employee row
+        html += `<tr class="add-employee-row"><td colspan="${weekDays.length + 2}">
+            <button class="btn-add-row" data-hotel="${hotels[0]?.id || 'julen'}">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Mitarbeiter hinzufügen
+            </button>
+        </td></tr>`;
+
+        // Coverage row per hotel
+        hotels.forEach(hotel => {
+            html += `<tr class="coverage-row"><td style="font-size:11px;color:var(--text-dim)">${HOTEL_SHORT[hotel.id] || '?'} Besetzung</td>`;
+            weekDays.forEach(day => {
+                const dateStr = formatDate(day);
+                let count = 0;
+                employees.forEach(emp => {
+                    if (emp.excludeFromCoverage) return;
+                    const a = (state.schedule[dateStr] || {})[emp.id];
+                    if (a && a.hotel === hotel.id && a.shiftTypeId !== 'free' && a.shiftTypeId !== 'vacation' && a.shiftTypeId !== 'sick' && a.shiftTypeId !== 'absent') count++;
+                });
+                const cov = state.settings.minCoverage;
+                const min = (typeof cov === 'object') ? (cov[hotel.id] || 2) : (cov || 2);
+                const cls = count >= min ? 'coverage-good' : count > 0 ? 'coverage-warn' : 'coverage-bad';
+                let tooltip = '';
+                if (count < min) {
+                    const available = employees.filter(emp => {
+                        if (emp.excludeFromCoverage) return false;
+                        const a = (state.schedule[dateStr] || {})[emp.id];
+                        return !a || a.shiftTypeId === 'free';
+                    }).map(e => e.name);
+                    tooltip = available.length > 0 ? `Verfuegbar: ${available.join(', ')}` : 'Keine verfuegbaren Mitarbeiter!';
+                }
+                html += `<td class="${cls}" ${tooltip ? `title="${tooltip}" style="cursor:help"` : ''}>${count}/${min}</td>`;
+            });
+            html += `<td></td></tr>`;
+        });
+
+        html += `</tbody></table></div>`;
+        return html;
     }
 
     function renderHotelTable(hotel, employees, weekDays) {
