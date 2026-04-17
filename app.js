@@ -946,6 +946,14 @@
         });
         // Sort: alphabetical or custom order
         const sortMode = state.settings.sortMode || 'alpha';
+        if (sortMode === 'custom') {
+            // Normalize order values if duplicates exist
+            const orders = allEmployees.map(e => e.order ?? 999);
+            if (new Set(orders).size !== orders.length) {
+                const sorted = [...allEmployees].sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
+                sorted.forEach((e, i) => { e.order = i; });
+            }
+        }
         allEmployees.sort((a, b) => {
             if (a.excludeFromCoverage && !b.excludeFromCoverage) return 1;
             if (!a.excludeFromCoverage && b.excludeFromCoverage) return -1;
@@ -1020,58 +1028,39 @@
                 e.preventDefault();
                 e.dataTransfer.dropEffect = 'move';
                 container.querySelectorAll('.emp-row').forEach(r => r.classList.remove('drag-over'));
-                if (row !== dragSrcRow) {
+                if (row !== dragSrcRow && dragSrcRow) {
                     row.classList.add('drag-over');
                 }
+            });
+            row.addEventListener('dragleave', () => {
+                row.classList.remove('drag-over');
             });
             row.addEventListener('drop', (e) => {
                 e.preventDefault();
                 if (!dragSrcRow || row === dragSrcRow) return;
 
                 const srcId = dragSrcRow.dataset.empId;
-                const srcHotel = dragSrcRow.dataset.hotel;
-                const tgtHotel = row.dataset.hotel;
-                const emp = state.employees.find(em => em.id === srcId);
 
-                // Cross-hotel drop: move employee's shifts to the other hotel
-                if (srcHotel !== tgtHotel && emp) {
-                    // Add the target hotel if employee doesn't have it yet
-                    if (!emp.hotels.includes(tgtHotel)) {
-                        emp.hotels.push(tgtHotel);
-                    }
-
-                    // Move all shifts from source hotel to target hotel for this week
-                    const weekDaysNow = getWeekDays(state.currentWeekStart);
-                    weekDaysNow.forEach(day => {
-                        const ds = formatDate(day);
-                        const a = (state.schedule[ds] || {})[srcId];
-                        if (a && a.hotel === srcHotel && a.shiftTypeId !== 'free' && a.shiftTypeId !== 'vacation' && a.shiftTypeId !== 'sick' && a.shiftTypeId !== 'absent') {
-                            a.hotel = tgtHotel;
-                        }
-                    });
-
-                    saveState();
-                    renderSchedule();
-                    const tgtHotelName = state.hotels.find(h => h.id === tgtHotel)?.name || tgtHotel;
-                    showToast(`${emp.name} nach ${tgtHotelName} verschoben`, 'success');
-                    return;
-                }
-
-                // Same-hotel reorder
+                // Reorder all employees (combined table)
                 const tgtId = row.dataset.empId;
-                const hotelId = row.dataset.hotel;
 
-                const hotelEmps = state.employees
-                    .filter(em => em.hotels.includes(hotelId))
-                    .sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
+                // Get all employees sorted by current order
+                const allEmps = [...state.employees].sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
 
-                const srcIdx = hotelEmps.findIndex(em => em.id === srcId);
-                const tgtIdx = hotelEmps.findIndex(em => em.id === tgtId);
+                const srcIdx = allEmps.findIndex(em => em.id === srcId);
+                const tgtIdx = allEmps.findIndex(em => em.id === tgtId);
                 if (srcIdx === -1 || tgtIdx === -1) return;
 
-                const [moved] = hotelEmps.splice(srcIdx, 1);
-                hotelEmps.splice(tgtIdx, 0, moved);
-                hotelEmps.forEach((em, i) => { em.order = i; });
+                const [moved] = allEmps.splice(srcIdx, 1);
+                allEmps.splice(tgtIdx, 0, moved);
+                allEmps.forEach((em, i) => { em.order = i; });
+
+                // Auto-switch to custom sort mode
+                if ((state.settings.sortMode || 'alpha') !== 'custom') {
+                    state.settings.sortMode = 'custom';
+                    const label = document.getElementById('sort-label');
+                    if (label) label.textContent = 'Eigene';
+                }
 
                 saveState();
                 renderSchedule();
