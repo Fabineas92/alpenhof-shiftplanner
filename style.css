@@ -1705,15 +1705,67 @@ nav {
 
 /* Print styles */
 @media print {
-    #sidebar, .view-actions, .week-nav button, .modal-overlay, .toast-container,
+    /* Hide all UI chrome */
+    #sidebar, .modal-overlay, .toast-container,
     .guide-overlay, .guide-highlight, .guide-tooltip, #lock-screen,
-    .btn-add-row, .add-employee-row, .drag-handle { display: none !important; }
-    body { background: #fff; color: #000; overflow: visible; }
-    #app { display: block !important; }
-    #main-content { padding: 10px; overflow: visible; }
-    .schedule-table { border: 1px solid #ccc; font-size: 11px; }
-    .schedule-table th { background: #f0f0f0; color: #333; }
-    .shift-cell { border: 1px solid #ddd !important; color: #000 !important; }
-    .emp-row.print-hidden { display: none !important; }
-    .week-summary { display: none; }
+    .btn-add-row, .add-employee-row, .drag-handle, .btn-remove-emp,
+    .view-actions, .sidebar-credit, .sidebar-footer { display: none !important; }
+
+    /* Layout */
+    body { background: #fff !important; color: #000 !important; overflow: visible !important; height: auto !important; }
+    body.light, body:not(.light) { --bg: #fff; --bg-card: #fff; --bg-hover: #f5f5f5; --text: #000; --text-muted: #555; --text-dim: #888; --border: #ccc; --primary: #333; }
+    #app { display: block !important; height: auto !important; }
+    #main-content { padding: 10px !important; overflow: visible !important; height: auto !important; }
+
+    /* Week title */
+    .week-nav { justify-content: center !important; }
+    .week-nav button, .week-jump-input { display: none !important; }
+    .week-nav h2 { font-size: 18px !important; color: #000 !important; text-align: center; }
+
+    /* Tables */
+    .schedule-table { border: 2px solid #333 !important; font-size: 10px !important; page-break-inside: avoid; }
+    .schedule-table th { background: #e8e8e8 !important; color: #000 !important; padding: 6px 4px !important; font-size: 9px !important; border: 1px solid #999 !important; }
+    .schedule-table td { padding: 2px !important; border: 1px solid #ccc !important; height: 32px !important; }
+    .schedule-table td:first-child { font-size: 11px !important; padding-left: 6px !important; }
+
+    /* Shift cells */
+    .shift-cell { border: none !important; background: none !important; color: #000 !important; font-size: 10px !important; min-height: 28px !important; padding: 2px 3px !important; }
+    .shift-cell.free { background: none !important; color: #888 !important; }
+    .shift-cell.vacation { color: #c00 !important; }
+    .shift-cell.other-hotel { border: 1px dashed #aaa !important; font-style: italic !important; color: #666 !important; }
+    .shift-cell .shift-time { font-size: 10px !important; }
+    .shift-cell .warning-dot { display: none !important; }
+
+    /* Avatar smaller */
+    .avatar { width: 18px !important; height: 18px !important; font-size: 8px !important; }
+    .employee-name-cell { gap: 4px !important; }
+
+    /* Hotel headers */
+    .hotel-section-header { margin-bottom: 4px !important; }
+    .hotel-section-header h3 { font-size: 14px !important; color: #000 !important; }
+    .hotel-badge { width: 8px !important; height: 8px !important; }
+    .hotel-section + .hotel-section { border-top: 3px solid #000 !important; padding-top: 12px !important; margin-top: 12px !important; }
+
+    /* Hours column */
+    .hours-col { font-size: 10px !important; color: #000 !important; }
+
+    /* Conditional hiding via body classes */
+    .print-hidden { display: none !important; }
+
+    /* Coverage row */
+    .coverage-row td { font-size: 9px !important; color: #000 !important; background: #f5f5f5 !important; }
+
+    /* Summary */
+    .week-summary { page-break-inside: avoid; }
+    .summary-item .value { color: #000 !important; }
+    .compliance-warnings { border-color: #c00 !important; }
 }
+
+/* Print option classes (applied by JS before print) */
+.print-no-hours-col .hours-col,
+.print-no-hours-col .schedule-table th:last-child { display: none !important; }
+.print-no-day-hours .shift-day-hours { display: none !important; }
+.print-no-holidays .day-holiday,
+.print-no-holidays .day-school { display: none !important; }
+.print-no-coverage .coverage-row { display: none !important; }
+.print-no-summary .week-summary { display: none !important; }

@@ -2788,25 +2788,95 @@
 
     // ========== EXPORT PDF ==========
     function exportPDF() {
-        // Hide employees with no actual shifts in their hotel this week
+        const kw = getWeekNumber(state.currentWeekStart);
         const weekDays = getWeekDays(state.currentWeekStart);
-        document.querySelectorAll('.emp-row').forEach(row => {
-            const empId = row.dataset.empId;
-            const hotelId = row.dataset.hotel;
-            let hasShift = false;
-            weekDays.forEach(day => {
-                const a = (state.schedule[formatDate(day)] || {})[empId];
-                if (a && a.hotel === hotelId && a.shiftTypeId !== 'free' && a.shiftTypeId !== 'absent') {
-                    hasShift = true;
+
+        let html = `
+            <p style="margin-bottom:16px;color:var(--text-muted)">KW ${kw} | ${formatDateShort(weekDays[0])} - ${formatDateShort(weekDays[6])}.${weekDays[6].getFullYear()}</p>
+            <div class="form-group">
+                <label>Was anzeigen</label>
+            </div>
+            <label class="checkbox-label" style="margin-bottom:8px">
+                <input type="checkbox" id="pdf-show-hours-col" checked>
+                Wochenstunden-Spalte (Std.)
+            </label>
+            <label class="checkbox-label" style="margin-bottom:8px">
+                <input type="checkbox" id="pdf-show-day-hours" checked>
+                Tagesstunden in Zellen
+            </label>
+            <label class="checkbox-label" style="margin-bottom:8px">
+                <input type="checkbox" id="pdf-show-holidays">
+                Feiertage & Schulferien
+            </label>
+            <label class="checkbox-label" style="margin-bottom:8px">
+                <input type="checkbox" id="pdf-show-coverage" checked>
+                Besetzung pro Tag
+            </label>
+            <label class="checkbox-label" style="margin-bottom:8px">
+                <input type="checkbox" id="pdf-show-summary">
+                Wochenzusammenfassung
+            </label>
+            <label class="checkbox-label" style="margin-bottom:8px">
+                <input type="checkbox" id="pdf-hide-empty" checked>
+                Mitarbeiter ohne Schicht ausblenden
+            </label>
+            <div class="form-group" style="margin-top:12px">
+                <label>Hotels</label>
+                <div class="checkbox-group">
+                    ${state.hotels.map(h => `<label class="checkbox-label"><input type="checkbox" name="pdf-hotel" value="${h.id}" checked> ${h.name}</label>`).join('')}
+                </div>
+            </div>
+        `;
+
+        openModal('PDF Export', html, () => {
+            const showHoursCol = document.getElementById('pdf-show-hours-col').checked;
+            const showDayHours = document.getElementById('pdf-show-day-hours').checked;
+            const showHolidays = document.getElementById('pdf-show-holidays').checked;
+            const showCoverage = document.getElementById('pdf-show-coverage').checked;
+            const showSummary = document.getElementById('pdf-show-summary').checked;
+            const hideEmpty = document.getElementById('pdf-hide-empty').checked;
+            const selectedHotels = [...document.querySelectorAll('input[name="pdf-hotel"]:checked')].map(c => c.value);
+
+            // Apply print classes
+            document.body.classList.add('printing');
+            if (!showHoursCol) document.body.classList.add('print-no-hours-col');
+            if (!showDayHours) document.body.classList.add('print-no-day-hours');
+            if (!showHolidays) document.body.classList.add('print-no-holidays');
+            if (!showCoverage) document.body.classList.add('print-no-coverage');
+            if (!showSummary) document.body.classList.add('print-no-summary');
+
+            // Hide unselected hotels
+            document.querySelectorAll('.hotel-section').forEach(sec => {
+                const hotelId = sec.querySelector('.btn-add-row')?.dataset.hotel;
+                if (hotelId && !selectedHotels.includes(hotelId)) {
+                    sec.classList.add('print-hidden');
                 }
             });
-            if (!hasShift) row.classList.add('print-hidden');
-        });
 
-        window.print();
+            // Hide employees without shifts
+            if (hideEmpty) {
+                document.querySelectorAll('.emp-row').forEach(row => {
+                    const empId = row.dataset.empId;
+                    const hotelId = row.dataset.hotel;
+                    let hasShift = false;
+                    weekDays.forEach(day => {
+                        const a = (state.schedule[formatDate(day)] || {})[empId];
+                        if (a && a.hotel === hotelId && a.shiftTypeId !== 'free' && a.shiftTypeId !== 'absent') {
+                            hasShift = true;
+                        }
+                    });
+                    if (!hasShift) row.classList.add('print-hidden');
+                });
+            }
 
-        // Restore visibility after print
-        document.querySelectorAll('.emp-row.print-hidden').forEach(r => r.classList.remove('print-hidden'));
+            setTimeout(() => {
+                window.print();
+
+                // Cleanup
+                document.body.classList.remove('printing', 'print-no-hours-col', 'print-no-day-hours', 'print-no-holidays', 'print-no-coverage', 'print-no-summary');
+                document.querySelectorAll('.print-hidden').forEach(el => el.classList.remove('print-hidden'));
+            }, 100);
+        }, { saveText: 'Drucken / PDF' });
     }
 
     // ========== INIT ==========
