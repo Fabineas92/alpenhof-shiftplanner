@@ -2666,8 +2666,9 @@
                 if (a && a.shiftTypeId !== 'free' && a.shiftTypeId !== 'vacation' && a.shiftTypeId !== 'sick' && a.shiftTypeId !== 'absent') conflictCount++;
                 cd = addDays(cd, 1);
             }
+            // Conflict warning is shown as toast, not blocking
             if (conflictCount > 0 && !isEdit) {
-                if (!confirm(`Achtung: ${conflictCount} bestehende Schicht(en) werden ueberschrieben. Fortfahren?`)) return false;
+                showToast(`${conflictCount} bestehende Schicht(en) werden ueberschrieben`, 'warning');
             }
 
             if (isEdit) {
