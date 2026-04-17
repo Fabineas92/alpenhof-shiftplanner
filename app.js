@@ -138,118 +138,90 @@
 
     // Each step targets a real UI element and shows a tooltip next to it
     const STEPS = [
-        // --- Welcome (centered, no target) ---
-        {
-            title: 'Willkommen beim Schichtplaner',
-            text: 'Dieses Tool hilft dir, die Schichtplaene fuer Hotel Julen und Hotel Alpenhof zu verwalten. Wir zeigen dir Schritt fuer Schritt, wo alles ist.',
-            target: null, tab: null, pos: 'center'
-        },
-        // --- Sidebar Navigation ---
-        {
-            title: 'Navigation',
-            text: 'Hier wechselst du zwischen den verschiedenen Bereichen: Wochenplan, Mitarbeiter, Schichttypen, Abwesenheiten, Statistiken und Einstellungen.',
-            target: '#sidebar nav', tab: null, pos: 'right'
-        },
-        // --- Schedule: Week nav ---
-        {
-            title: 'Wochen-Navigation',
-            text: 'Mit den Pfeilen wechselst du zwischen Wochen. "Heute" springt zur aktuellen Woche. Die Kalenderwoche und der Zeitraum werden oben angezeigt.',
-            target: '.week-nav', tab: 'schedule', pos: 'bottom'
-        },
-        // --- Schedule: Hotel filter ---
-        {
-            title: 'Hotel-Filter',
-            text: 'Zeige beide Hotels gleichzeitig oder filtere nach Hotel Julen oder Hotel Alpenhof. So hast du den Fokus auf ein Hotel, wenn du planst.',
-            target: '.hotel-filter', tab: 'schedule', pos: 'bottom'
-        },
-        // --- Schedule: Auto-Fill ---
-        {
-            title: 'Auto-Fill',
-            text: 'Fuellt die gesamte Woche automatisch. Beruecksichtigt Standard-Freitage, feste Schichten pro Wochentag und sorgt dafuer, dass immer Frueh- und Spaetschicht besetzt sind.',
-            target: '#btn-auto-fill', tab: 'schedule', pos: 'bottom'
-        },
-        // --- Schedule: Copy ---
-        {
-            title: 'Woche kopieren',
-            text: 'Kopiere den aktuellen Plan in die naechste Woche oder uebernimm den Plan der Vorwoche. Ideal wenn sich die Woche wiederholt.',
-            target: '#btn-copy-week', tab: 'schedule', pos: 'bottom'
-        },
+        // --- Welcome ---
+        { title: 'Willkommen beim Schichtplaner',
+          text: 'Dieses Tool hilft dir, die Schichtplaene fuer Hotel Julen und Hotel Alpenhof zu verwalten. Wir zeigen dir Schritt fuer Schritt, wo alles ist.',
+          target: null, tab: null, pos: 'center' },
+
+        // --- Sidebar ---
+        { title: 'Navigation',
+          text: 'Links findest du alle Bereiche: Wochenplan, Mitarbeiter, Schichttypen, Abwesenheiten, Ferienkontigent, Regeln, Urlaubsanfragen, Jahresuebersicht, Statistiken, Mitarbeiter-Portal und Einstellungen.',
+          target: '#sidebar nav', tab: null, pos: 'right' },
+
+        // --- Schedule: Week nav + KW jump ---
+        { title: 'Wochen-Navigation',
+          text: 'Mit den Pfeilen wechselst du zwischen Wochen. "Heute" springt zur aktuellen Woche. Mit dem KW-Feld rechts springst du direkt zu einer bestimmten Kalenderwoche.',
+          target: '.week-nav', tab: 'schedule', pos: 'bottom' },
+
+        // --- Schedule: Filter + Actions ---
+        { title: 'Filter & Aktionen',
+          text: 'Filtere nach Hotel, fuelle die Woche automatisch mit Auto-Fill (beachtet Ruhezeiten und Freitage), kopiere Wochen oder mache Aenderungen mit Undo rueckgaengig (Ctrl+Z).',
+          target: '.view-actions', tab: 'schedule', pos: 'bottom' },
+
         // --- Schedule: Shift cell ---
-        {
-            title: 'Schicht zuweisen',
-            text: 'Klicke auf eine Zelle um die Schicht zu aendern. Du kannst Frueh, Spaet, Mittel, Frei, Ferien, Krank waehlen — oder eine eigene Vorlage erstellen. Die Stunden werden rechts unten angezeigt.',
-            target: '.schedule-table tbody tr:first-child td:nth-child(2)', tab: 'schedule', pos: 'bottom'
-        },
-        // --- Schedule: Hours column ---
-        {
-            title: 'Wochenstunden',
-            text: 'In der letzten Spalte siehst du die Gesamtstunden pro Mitarbeiter fuer diese Woche. So erkennst du schnell, ob jemand zu viel oder zu wenig arbeitet.',
-            target: '.hours-col', tab: 'schedule', pos: 'left'
-        },
-        // --- Schedule: Coverage row ---
-        {
-            title: 'Besetzung pro Tag',
-            text: 'Am Ende jeder Hotel-Tabelle siehst du die aktuelle Besetzung im Vergleich zum Minimum (z.B. 3/2). Gruen = ausreichend, Rot = unterbesetzt.',
-            target: '.coverage-row', tab: 'schedule', pos: 'top'
-        },
-        // --- Schedule: Add employee row ---
-        {
-            title: 'Mitarbeiter direkt hinzufuegen',
-            text: 'Klicke hier um einen neuen Mitarbeiter direkt aus dem Wochenplan heraus anzulegen. Das Hotel wird automatisch vorausgewaehlt.',
-            target: '.btn-add-row', tab: 'schedule', pos: 'top'
-        },
-        // --- Employees tab ---
-        {
-            title: 'Mitarbeiter verwalten',
-            text: 'Hier siehst du alle Mitarbeiter als Karten. Klicke "Bearbeiten" um Hotels, Freitage, feste Schichten und Tages-Schichten einzustellen.',
-            target: '#employees-list', tab: 'employees', pos: 'top'
-        },
-        // --- Employees: Add button ---
-        {
-            title: 'Neuen Mitarbeiter anlegen',
-            text: 'Klicke hier um einen neuen Mitarbeiter hinzuzufuegen. Du kannst Hotels zuordnen, Standard-Freitage festlegen und fuer jeden Wochentag eine feste Schicht waehlen.',
-            target: '#btn-add-employee', tab: 'employees', pos: 'bottom'
-        },
-        // --- Shifts tab ---
-        {
-            title: 'Schichtvorlagen',
-            text: 'Hier verwaltest du alle Schichttypen (Frueh, Spaet, Mittel, Tag, Schule). Du kannst eigene Vorlagen erstellen — z.B. halbe Schichten oder Teildienste.',
-            target: '#shifts-list', tab: 'shifts', pos: 'top'
-        },
-        // --- Absences tab ---
-        {
-            title: 'Abwesenheiten eintragen',
-            text: 'Trage hier Ferien, Krankheitstage oder sonstige Abwesenheiten mit Zeitraum ein. Die Tage werden automatisch im Schichtplan markiert.',
-            target: '#btn-add-absence', tab: 'absences', pos: 'bottom'
-        },
-        // --- Stats tab ---
-        {
-            title: 'Statistiken & Ueberblick',
-            text: 'Gesamtstunden, Hotel-Abdeckung, Schichtkonsistenz und ein visueller Stunden-Vergleich aller Mitarbeiter — alles auf einen Blick.',
-            target: '#stats-container', tab: 'stats', pos: 'top'
-        },
-        // --- Settings: Coverage ---
-        {
-            title: 'Besetzung pro Hotel',
-            text: 'Stelle die Mindestbesetzung fuer jedes Hotel separat ein. Der Wochenplan warnt dich, wenn ein Tag unterbesetzt ist.',
-            target: '#coverage-settings', tab: 'settings', pos: 'top'
-        },
-        // --- Settings: Tutorial button ---
-        {
-            title: 'Tutorial erneut starten',
-            text: 'Du kannst diesen Guide jederzeit hier erneut starten. Auch neue Mitarbeiter koennen sich so einarbeiten.',
-            target: '#btn-restart-tutorial', tab: 'settings', pos: 'top'
-        },
+        { title: 'Schicht zuweisen',
+          text: 'Klicke auf eine Zelle um die Schicht zuzuweisen. Der Picker zeigt Ruhezeit-Warnungen, Schicht-Tausch und Doppelschichten. Die Tagesstunden stehen rechts unten in jeder Zelle.',
+          target: '.schedule-table tbody tr:first-child td:nth-child(2)', tab: 'schedule', pos: 'bottom' },
+
+        // --- Schedule: Hours + Coverage ---
+        { title: 'Stunden & Besetzung',
+          text: 'Die letzte Spalte zeigt Wochenstunden pro Mitarbeiter. Die Besetzungs-Zeile unten zeigt ob genug Leute eingeplant sind (gruen = OK, rot = unterbesetzt). Bei Unterbesetzung zeigt ein Tooltip wer verfuegbar ist.',
+          target: '.coverage-row', tab: 'schedule', pos: 'top' },
+
+        // --- Employees ---
+        { title: 'Mitarbeiter verwalten',
+          text: 'Alle Mitarbeiter mit Hotels, Position, Freitage und festen Schichten. Klicke "Bearbeiten" um alles einzustellen. Du kannst Mitarbeiter auch per Drag & Drop zwischen Hotels verschieben.',
+          target: '#employees-list', tab: 'employees', pos: 'top' },
+
+        // --- Shifts ---
+        { title: 'Schichtvorlagen',
+          text: 'Verwalte alle Schichttypen mit Zeiten, Pausen und Farben. Erstelle eigene Vorlagen fuer halbe Schichten, Teildienste oder Sonderschichten.',
+          target: '#shifts-list', tab: 'shifts', pos: 'top' },
+
+        // --- Absences ---
+        { title: 'Abwesenheiten',
+          text: 'Trage Ferien, Krankheit oder sonstige Abwesenheiten ein. Die Tage werden automatisch im Schichtplan markiert. Du wirst gewarnt wenn bestehende Schichten ueberschrieben werden.',
+          target: '#btn-add-absence', tab: 'absences', pos: 'bottom' },
+
+        // --- Vacation Balance ---
+        { title: 'Ferienkontigent',
+          text: 'Uebersicht der Ferientage pro Mitarbeiter: Anspruch, freigeschaltet, genommen und Saldo. Die Tage pro Monat kannst du oben einstellen.',
+          target: '#vacation-container', tab: 'vacation', pos: 'top' },
+
+        // --- Rules ---
+        { title: 'Positionen & Regeln',
+          text: 'Erstelle Regeln wie "Anja darf nicht alleine auf einer Schicht sein". Positionen werden im Mitarbeiter-Profil festgelegt.',
+          target: '#rules-container', tab: 'rules', pos: 'top' },
+
+        // --- Stats + Compliance ---
+        { title: 'Statistiken & Compliance',
+          text: 'Stunden pro Mitarbeiter, Hotel-Abdeckung und Schichtkonsistenz. Der Compliance-Report zeigt Verstoesse: Ueberstunden (>45h), Ruhezeiten (<11h), zu viele Arbeitstage.',
+          target: '#stats-container', tab: 'stats', pos: 'top' },
+
+        // --- Gantt ---
+        { title: 'Jahresuebersicht',
+          text: 'Alle Mitarbeiter ueber 52 Wochen: Wer arbeitet wann, wer hat Ferien, wer ist krank. Auch fuer vergangene und zukuenftige Jahre.',
+          target: '#gantt-container', tab: 'gantt', pos: 'top' },
+
+        // --- Portal ---
+        { title: 'Mitarbeiter-Portal',
+          text: 'Mitarbeiter koennen hier ihren eigenen Schichtplan einsehen und Urlaubsanfragen stellen. Der Manager genehmigt oder lehnt ab im Urlaubsanfragen-Tab.',
+          target: '#portal-container', tab: 'portal', pos: 'top' },
+
+        // --- Settings ---
+        { title: 'Einstellungen',
+          text: 'Regeln, Besetzung pro Hotel, Daten-Export/Import und das Tutorial erneut starten. Der PDF-Export bietet Optionen fuer Stunden, Feiertage und Hotels.',
+          target: '#coverage-settings', tab: 'settings', pos: 'top' },
+
         // --- Done ---
-        {
-            title: 'Fertig!',
-            text: 'Du kennst jetzt alle Funktionen. Viel Spass beim Planen! Tipp: Starte mit Auto-Fill und passe dann manuell an.\n\nMit Liebe gemacht von Fabian',
-            target: null, tab: 'schedule', pos: 'center'
-        }
+        { title: 'Fertig!',
+          text: 'Du kennst jetzt alle Funktionen. Viel Spass beim Planen!\n\nTipp: Starte mit Auto-Fill und passe dann manuell an.\n\nMit Liebe gemacht von Fabian',
+          target: null, tab: 'schedule', pos: 'center' }
     ];
 
     let currentStep = 0;
     let overlay, tooltip, highlight;
+    let guideAnimating = false;
 
     window.startTutorial = function () {
         currentStep = 0;
@@ -298,9 +270,11 @@
 
             document.getElementById('guide-skip').addEventListener('click', closeGuide);
             document.getElementById('guide-back').addEventListener('click', () => {
+                if (guideAnimating) return;
                 if (currentStep > 0) { currentStep--; renderGuideStep(); }
             });
             document.getElementById('guide-next').addEventListener('click', () => {
+                if (guideAnimating) return;
                 if (currentStep < STEPS.length - 1) { currentStep++; renderGuideStep(); }
                 else closeGuide();
             });
@@ -316,6 +290,7 @@
     }
 
     function renderGuideStep() {
+        guideAnimating = true;
         const step = STEPS[currentStep];
 
         // Switch tab
@@ -324,10 +299,17 @@
             if (btn) btn.click();
         }
 
-        // Wait for DOM to update after tab switch
-        requestAnimationFrame(() => { requestAnimationFrame(() => {
+        // Wait for DOM to update and target to have dimensions
+        function waitAndPosition(attempts) {
+            const tgt = step.target ? document.querySelector(step.target) : null;
+            if (tgt && tgt.offsetHeight === 0 && attempts < 15) {
+                setTimeout(() => waitAndPosition(attempts + 1), 60);
+                return;
+            }
             positionGuide(step);
-        }); });
+            guideAnimating = false;
+        }
+        setTimeout(() => waitAndPosition(0), 150);
     }
 
     function positionGuide(step) {
@@ -367,39 +349,44 @@
         }
 
         // Scroll element into view
-        tgt.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        tgt.scrollIntoView({ behavior: 'instant', block: 'nearest' });
 
         setTimeout(() => {
             const rect = tgt.getBoundingClientRect();
             const pad = 8;
 
+            // Clamp highlight to visible area (don't go off-screen)
+            const clampedLeft = Math.max(0, rect.left - pad);
+            const clampedTop = Math.max(0, rect.top - pad);
+            const clampedW = Math.min(window.innerWidth - clampedLeft, rect.width + pad * 2);
+            const clampedH = Math.min(window.innerHeight - clampedTop, rect.height + pad * 2);
+
             // Position highlight
             highlight.style.display = '';
-            highlight.style.left = (rect.left - pad) + 'px';
-            highlight.style.top = (rect.top - pad) + 'px';
-            highlight.style.width = (rect.width + pad * 2) + 'px';
-            highlight.style.height = (rect.height + pad * 2) + 'px';
+            highlight.style.left = clampedLeft + 'px';
+            highlight.style.top = clampedTop + 'px';
+            highlight.style.width = clampedW + 'px';
+            highlight.style.height = clampedH + 'px';
 
             // Clip overlay to create hole
-            const hx = rect.left - pad;
-            const hy = rect.top - pad;
-            const hw = rect.width + pad * 2;
-            const hh = rect.height + pad * 2;
-            const r = 10;
             overlay.style.background = 'rgba(0,0,0,.45)';
             overlay.style.clipPath = `polygon(
-                0% 0%, 0% 100%, ${hx}px 100%, ${hx}px ${hy}px,
-                ${hx + hw}px ${hy}px, ${hx + hw}px ${hy + hh}px,
-                ${hx}px ${hy + hh}px, ${hx}px 100%, 100% 100%, 100% 0%
+                0% 0%, 0% 100%, ${clampedLeft}px 100%, ${clampedLeft}px ${clampedTop}px,
+                ${clampedLeft + clampedW}px ${clampedTop}px, ${clampedLeft + clampedW}px ${clampedTop + clampedH}px,
+                ${clampedLeft}px ${clampedTop + clampedH}px, ${clampedLeft}px 100%, 100% 100%, 100% 0%
             )`;
 
-            // Position tooltip based on pos
-            const ttWidth = 340;
-            const ttHeight = tooltip.offsetHeight || 180;
+            // Render tooltip off-screen first to measure height
             tooltip.style.position = 'fixed';
             tooltip.style.transform = 'none';
-            tooltip.style.maxWidth = ttWidth + 'px';
+            tooltip.style.maxWidth = '340px';
+            tooltip.style.left = '-9999px';
+            tooltip.style.top = '0';
             arrow.style.display = '';
+
+            // Force layout to get correct height
+            const ttWidth = 340;
+            const ttHeight = tooltip.offsetHeight;
 
             const gap = 16;
             let ttLeft, ttTop;
