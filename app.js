@@ -947,8 +947,26 @@
             cell.addEventListener('click', () => {
                 const empId = cell.dataset.employee;
                 const dateStr = cell.dataset.date;
-                const hotel = cell.dataset.hotel;
-                openShiftPicker(empId, dateStr, hotel);
+                const hotelId = cell.dataset.hotel;
+
+                // If it's an "other-hotel" cell, offer to move the shift here
+                if (cell.classList.contains('other-hotel')) {
+                    const srcHotel = cell.dataset.srcHotel;
+                    const emp = state.employees.find(e => e.id === empId);
+                    const tgtHotelName = state.hotels.find(h => h.id === hotelId)?.name || hotelId;
+                    const srcHotelName = state.hotels.find(h => h.id === srcHotel)?.name || srcHotel;
+
+                    openModal('Schicht verschieben', `<p>Soll die Schicht von <strong>${emp?.name}</strong> am ${dateStr} von <strong>${srcHotelName}</strong> nach <strong>${tgtHotelName}</strong> verschoben werden?</p>`, () => {
+                        const a = (state.schedule[dateStr] || {})[empId];
+                        if (a) a.hotel = hotelId;
+                        saveState();
+                        renderSchedule();
+                        showToast('Schicht verschoben', 'success');
+                    }, { saveText: 'Verschieben' });
+                    return;
+                }
+
+                openShiftPicker(empId, dateStr, hotelId);
             });
         });
 
@@ -976,38 +994,109 @@
                 e.preventDefault();
                 e.dataTransfer.dropEffect = 'move';
                 container.querySelectorAll('.emp-row').forEach(r => r.classList.remove('drag-over'));
-                if (row !== dragSrcRow && row.dataset.hotel === dragSrcRow?.dataset.hotel) {
+                if (row !== dragSrcRow) {
                     row.classList.add('drag-over');
                 }
             });
             row.addEventListener('drop', (e) => {
                 e.preventDefault();
                 if (!dragSrcRow || row === dragSrcRow) return;
-                if (row.dataset.hotel !== dragSrcRow.dataset.hotel) return;
 
                 const srcId = dragSrcRow.dataset.empId;
+                const srcHotel = dragSrcRow.dataset.hotel;
+                const tgtHotel = row.dataset.hotel;
+                const emp = state.employees.find(em => em.id === srcId);
+
+                // Cross-hotel drop: move employee's shifts to the other hotel
+                if (srcHotel !== tgtHotel && emp) {
+                    // Add the target hotel if employee doesn't have it yet
+                    if (!emp.hotels.includes(tgtHotel)) {
+                        emp.hotels.push(tgtHotel);
+                    }
+
+                    // Move all shifts from source hotel to target hotel for this week
+                    const weekDaysNow = getWeekDays(state.currentWeekStart);
+                    weekDaysNow.forEach(day => {
+                        const ds = formatDate(day);
+                        const a = (state.schedule[ds] || {})[srcId];
+                        if (a && a.hotel === srcHotel && a.shiftTypeId !== 'free' && a.shiftTypeId !== 'vacation' && a.shiftTypeId !== 'sick' && a.shiftTypeId !== 'absent') {
+                            a.hotel = tgtHotel;
+                        }
+                    });
+
+                    saveState();
+                    renderSchedule();
+                    const tgtHotelName = state.hotels.find(h => h.id === tgtHotel)?.name || tgtHotel;
+                    showToast(`${emp.name} nach ${tgtHotelName} verschoben`, 'success');
+                    return;
+                }
+
+                // Same-hotel reorder
                 const tgtId = row.dataset.empId;
                 const hotelId = row.dataset.hotel;
 
-                // Get employees for this hotel sorted
                 const hotelEmps = state.employees
-                    .filter(emp => emp.hotels.includes(hotelId))
+                    .filter(em => em.hotels.includes(hotelId))
                     .sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
 
-                const srcIdx = hotelEmps.findIndex(e => e.id === srcId);
-                const tgtIdx = hotelEmps.findIndex(e => e.id === tgtId);
+                const srcIdx = hotelEmps.findIndex(em => em.id === srcId);
+                const tgtIdx = hotelEmps.findIndex(em => em.id === tgtId);
                 if (srcIdx === -1 || tgtIdx === -1) return;
 
-                // Move in array
                 const [moved] = hotelEmps.splice(srcIdx, 1);
                 hotelEmps.splice(tgtIdx, 0, moved);
-
-                // Reassign order
-                hotelEmps.forEach((emp, i) => { emp.order = i; });
+                hotelEmps.forEach((em, i) => { em.order = i; });
 
                 saveState();
                 renderSchedule();
                 showToast('Reihenfolge geaendert', 'success');
+            });
+        });
+
+        // Hotel sections as drop targets for cross-hotel moves
+        container.querySelectorAll('.hotel-section').forEach(section => {
+            const hotelHeader = section.querySelector('.hotel-section-header');
+            if (!hotelHeader) return;
+            const hotelId = section.querySelector('.btn-add-row')?.dataset.hotel;
+            if (!hotelId) return;
+
+            section.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+            });
+            hotelHeader.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                hotelHeader.style.background = 'var(--primary-bg)';
+            });
+            hotelHeader.addEventListener('dragleave', () => {
+                hotelHeader.style.background = '';
+            });
+            hotelHeader.addEventListener('drop', (e) => {
+                e.preventDefault();
+                hotelHeader.style.background = '';
+                if (!dragSrcRow) return;
+                const srcId = dragSrcRow.dataset.empId;
+                const srcHotel = dragSrcRow.dataset.hotel;
+                if (srcHotel === hotelId) return;
+
+                const emp = state.employees.find(em => em.id === srcId);
+                if (!emp) return;
+                if (!emp.hotels.includes(hotelId)) emp.hotels.push(hotelId);
+
+                // Move this week's shifts
+                const weekDaysNow = getWeekDays(state.currentWeekStart);
+                weekDaysNow.forEach(day => {
+                    const ds = formatDate(day);
+                    const a = (state.schedule[ds] || {})[srcId];
+                    if (a && a.hotel === srcHotel && a.shiftTypeId !== 'free' && a.shiftTypeId !== 'vacation' && a.shiftTypeId !== 'sick' && a.shiftTypeId !== 'absent') {
+                        a.hotel = hotelId;
+                    }
+                });
+
+                saveState();
+                renderSchedule();
+                const tgtName = state.hotels.find(h => h.id === hotelId)?.name || hotelId;
+                showToast(`${emp.name} nach ${tgtName} verschoben`, 'success');
             });
         });
 
@@ -1176,32 +1265,12 @@
         html += `<th>Std.</th></tr></thead><tbody>`;
 
         employees.forEach(emp => {
-            const isDual = emp.hotels.length > 1;
-
-            // Analyze the week for this employee at THIS hotel
-            let hasShiftHere = false;
-            let hasShiftOther = false;
-            let allAbsentHere = true;
-
-            weekDays.forEach(day => {
-                const ds = formatDate(day);
-                const a = (state.schedule[ds] || {})[emp.id];
-                if (!a) { allAbsentHere = false; return; }
-                if (a.hotel === hotel.id) {
-                    if (a.shiftTypeId !== 'absent') allAbsentHere = false;
-                    if (a.shiftTypeId !== 'free' && a.shiftTypeId !== 'vacation' && a.shiftTypeId !== 'sick' && a.shiftTypeId !== 'absent') hasShiftHere = true;
-                } else if (a.shiftTypeId !== 'free' && a.shiftTypeId !== 'vacation' && a.shiftTypeId !== 'sick' && a.shiftTypeId !== 'absent') {
-                    hasShiftOther = true;
-                }
+            // Check if entire week is absent at this hotel
+            const allAbsent = weekDays.every(day => {
+                const a = (state.schedule[formatDate(day)] || {})[emp.id];
+                return a && a.hotel === hotel.id && a.shiftTypeId === 'absent';
             });
-
-            // Hide if all absent here
-            if (allAbsentHere) return;
-            // Hide dual-hotel employee if no shifts anywhere this week
-            if (isDual && !hasShiftHere && !hasShiftOther) {
-                const hasAny = weekDays.some(d => { const a = (state.schedule[formatDate(d)] || {})[emp.id]; return a && a.hotel === hotel.id; });
-                if (!hasAny) return;
-            }
+            if (allAbsent) return;
 
             let weekHours = 0;
             html += `<tr class="emp-row" draggable="true" data-emp-id="${emp.id}" data-hotel="${hotel.id}"><td><div class="employee-name-cell">
@@ -1216,16 +1285,16 @@
                 const assignment = (state.schedule[dateStr] || {})[emp.id];
                 const absence = getAbsenceForDate(emp.id, dateStr);
 
-                // Dual-hotel: show placeholder if working at OTHER hotel this day
-                if (isDual && assignment && assignment.hotel !== hotel.id &&
+                // Show "Im Julen" / "Im Alpenhof" if working at OTHER hotel this day
+                if (assignment && assignment.hotel !== hotel.id &&
                     assignment.shiftTypeId !== 'free' && assignment.shiftTypeId !== 'vacation' &&
                     assignment.shiftTypeId !== 'sick' && assignment.shiftTypeId !== 'absent') {
                     const otherHotel = state.hotels.find(h => h.id === assignment.hotel);
                     const otherShift = state.shiftTypes.find(s => s.id === assignment.shiftTypeId);
-                    const shortName = otherHotel ? otherHotel.name.replace('Hotel ', '') : '?';
+                    const hotelLabel = otherHotel ? 'Im ' + otherHotel.name.replace('Hotel ', '') : '?';
                     const timeStr = otherShift ? `${otherShift.start}-${otherShift.end}` : '';
-                    html += `<td><div class="shift-cell other-hotel" data-employee="${emp.id}" data-date="${dateStr}" data-hotel="${hotel.id}" title="Arbeitet im ${otherHotel ? otherHotel.name : '?'}">
-                        <span class="shift-time">${shortName}</span>
+                    html += `<td><div class="shift-cell other-hotel" data-employee="${emp.id}" data-date="${dateStr}" data-hotel="${hotel.id}" data-src-hotel="${assignment.hotel}" title="Klicke um hierher zu verschieben: ${hotelLabel} ${timeStr}">
+                        <span class="shift-time">${hotelLabel}</span>
                         <span class="shift-day-hours">${timeStr}</span>
                     </div></td>`;
                 } else {
@@ -1238,7 +1307,6 @@
                     assignment.shiftTypeId !== 'sick' && assignment.shiftTypeId !== 'absent') {
                     const st = state.shiftTypes.find(s => s.id === assignment.shiftTypeId);
                     if (st) weekHours += calcShiftHours(st);
-                    // Support split/double shifts (second shift stored as shiftTypeId2)
                     if (assignment.shiftTypeId2) {
                         const st2 = state.shiftTypes.find(s => s.id === assignment.shiftTypeId2);
                         if (st2) weekHours += calcShiftHours(st2);

@@ -900,21 +900,34 @@ nav {
 
 /* Other hotel placeholder */
 .shift-cell.other-hotel {
-    background: rgba(120,113,96,.08);
+    background: rgba(120,113,96,.06);
     color: var(--text-dim);
-    border: 1px dashed var(--border);
+    border: 1px dashed var(--border-light);
     font-style: italic;
     flex-direction: column;
-    gap: 0;
+    gap: 1px;
+    cursor: pointer;
+}
+.shift-cell.other-hotel:hover {
+    border-color: var(--primary);
+    background: var(--primary-bg);
+    color: var(--primary);
 }
 .shift-cell.other-hotel .shift-time {
     font-size: 10px;
-    opacity: .7;
+    opacity: .8;
+    font-weight: 500;
 }
 .shift-cell.other-hotel .shift-day-hours {
     position: static;
     font-size: 9px;
     opacity: .5;
+}
+
+/* Cross-hotel drag highlight */
+.hotel-section-header.drag-target {
+    background: var(--primary-bg);
+    border-radius: var(--radius);
 }
 
 /* Free day cross pattern */
