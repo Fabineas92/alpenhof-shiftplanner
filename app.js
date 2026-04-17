@@ -2270,53 +2270,6 @@
             </div>`;
         });
 
-        // === COMPLIANCE REPORT ===
-        const violations = [];
-        const minRest = state.settings.minRestHours || 11;
-
-        empStats.forEach(s => {
-            // Overtime check
-            if (s.hours > 45) violations.push({ emp: s.emp.name, type: 'overtime', text: `${s.hours.toFixed(1)}h/Woche (max. 45h)` });
-
-            // Rest period check
-            for (let di = 1; di < days.length; di++) {
-                const prevA = (state.schedule[formatDate(days[di-1])] || {})[s.emp.id];
-                const currA = (state.schedule[formatDate(days[di])] || {})[s.emp.id];
-                if (!prevA || !currA) continue;
-                const isWork = id => id !== 'free' && id !== 'vacation' && id !== 'sick' && id !== 'absent';
-                if (!isWork(prevA.shiftTypeId) || !isWork(currA.shiftTypeId)) continue;
-                const ps = state.shiftTypes.find(x => x.id === prevA.shiftTypeId);
-                const cs = state.shiftTypes.find(x => x.id === currA.shiftTypeId);
-                if (!ps || !cs) continue;
-                const [peh,pem] = ps.end.split(':').map(Number);
-                const [csh,csm] = cs.start.split(':').map(Number);
-                const rest = (csh*60+csm+24*60-peh*60-pem)/60;
-                if (rest < minRest) {
-                    violations.push({ emp: s.emp.name, type: 'rest', text: `Nur ${rest.toFixed(0)}h Ruhe (${formatDateShort(days[di-1])}→${formatDateShort(days[di])}, min. ${minRest}h)` });
-                }
-            }
-
-            // Max days check
-            const maxD = s.emp.maxDays || 5;
-            if (s.shifts > maxD) violations.push({ emp: s.emp.name, type: 'days', text: `${s.shifts} Arbeitstage (max. ${maxD})` });
-        });
-
-        if (violations.length > 0) {
-            html += `<div class="stat-card" style="grid-column:1/-1;border-color:var(--danger)">
-                <h4 style="color:var(--danger)">Compliance-Report (${violations.length} Verstösse)</h4>
-                <div style="margin-top:8px">
-                    ${violations.map(v => `<div style="padding:6px 10px;margin-bottom:4px;background:var(--danger-bg);border-radius:4px;font-size:12px;border-left:3px solid var(--danger)">
-                        <strong>${v.emp}</strong>: ${v.text}
-                    </div>`).join('')}
-                </div>
-            </div>`;
-        } else {
-            html += `<div class="stat-card" style="grid-column:1/-1;border-color:var(--success)">
-                <h4 style="color:var(--success)">Compliance-Report</h4>
-                <p style="color:var(--text-muted);font-size:13px;margin-top:4px">Keine Verstoesse gefunden. Alle Mitarbeiter innerhalb der Grenzwerte.</p>
-            </div>`;
-        }
-
         container.innerHTML = html;
     }
 
