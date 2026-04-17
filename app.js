@@ -888,6 +888,20 @@
         document.getElementById('btn-copy-week').addEventListener('click', copyWeek);
         document.getElementById('btn-undo').addEventListener('click', undo);
 
+        // Sort toggle
+        const updateSortLabel = () => {
+            const label = document.getElementById('sort-label');
+            if (label) label.textContent = (state.settings.sortMode || 'alpha') === 'alpha' ? 'A-Z' : 'Eigene';
+        };
+        updateSortLabel();
+        document.getElementById('btn-sort-toggle').addEventListener('click', () => {
+            state.settings.sortMode = (state.settings.sortMode || 'alpha') === 'alpha' ? 'custom' : 'alpha';
+            saveState();
+            updateSortLabel();
+            renderSchedule();
+            showToast(state.settings.sortMode === 'alpha' ? 'Alphabetisch sortiert' : 'Eigene Reihenfolge (per Drag & Drop aendern)', 'info');
+        });
+
         // Week jump
         document.getElementById('week-jump').addEventListener('change', (e) => {
             const val = e.target.value; // format: "2026-W15"
@@ -930,12 +944,26 @@
                     if (!seen.has(e.id)) { seen.add(e.id); allEmployees.push(e); }
                 });
         });
+        // Sort: alphabetical or custom order
+        const sortMode = state.settings.sortMode || 'alpha';
         allEmployees.sort((a, b) => {
             if (a.excludeFromCoverage && !b.excludeFromCoverage) return 1;
             if (!a.excludeFromCoverage && b.excludeFromCoverage) return -1;
+            if (sortMode === 'custom') return (a.order ?? 999) - (b.order ?? 999);
             return a.name.localeCompare(b.name);
         });
-        html += renderCombinedTable(allEmployees, weekDays, hotelsToShow);
+
+        // Filter out employees hidden by absence
+        const visibleEmployees = allEmployees.filter(emp => {
+            // Check if employee has an active absence with hideFromPlan=true
+            const now = formatDate(weekDays[0]);
+            const end = formatDate(weekDays[6]);
+            const hiddenAbsence = state.absences.find(a =>
+                a.employeeId === emp.id && a.hideFromPlan && a.startDate <= end && a.endDate >= now
+            );
+            return !hiddenAbsence;
+        });
+        html += renderCombinedTable(visibleEmployees, weekDays, hotelsToShow);
 
         container.innerHTML = html;
         renderWeekSummary(weekDays);
@@ -2393,6 +2421,10 @@
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                         Frei: ${emp.defaultFreeDays && emp.defaultFreeDays.length > 0 ? emp.defaultFreeDays.map(d => DAY_NAMES[d]).join(', ') : 'Nicht festgelegt'}
                     </div>
+                    ${emp.startDate || emp.endDate ? `<div class="card-info" style="font-size:11px">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>
+                        ${emp.startDate ? 'Seit ' + formatDateFull(emp.startDate) : ''}${emp.startDate && emp.endDate ? ' — ' : ''}${emp.endDate ? 'Bis ' + formatDateFull(emp.endDate) : emp.startDate ? ' (unbefristet)' : ''}
+                    </div>` : ''}
                 </div>
             </div>`;
         });
@@ -2415,6 +2447,16 @@
                 <div class="form-group">
                     <label>Position</label>
                     <input type="text" id="emp-position" value="${emp ? (emp.position || '') : ''}" placeholder="z.B. Front Office Agent">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Eingestellt seit</label>
+                    <input type="date" id="emp-start-date" value="${emp ? (emp.startDate || '') : ''}">
+                </div>
+                <div class="form-group">
+                    <label>Voraussichtliches Ende</label>
+                    <input type="date" id="emp-end-date" value="${emp ? (emp.endDate || '') : ''}" placeholder="Leer = unbefristet">
                 </div>
             </div>
             <div class="form-group">
@@ -2481,6 +2523,8 @@
             const name = document.getElementById('emp-name').value.trim();
             if (!name) { showToast('Name ist erforderlich', 'error'); return false; }
             const position = document.getElementById('emp-position').value.trim();
+            const startDate = document.getElementById('emp-start-date').value || null;
+            const endDate = document.getElementById('emp-end-date').value || null;
 
             const hotels = [...document.querySelectorAll('input[name="emp-hotel"]:checked')].map(c => c.value);
             if (hotels.length === 0) { showToast('Mindestens ein Hotel wählen', 'error'); return false; }
@@ -2499,6 +2543,8 @@
             if (isEdit) {
                 emp.name = name;
                 emp.position = position;
+                emp.startDate = startDate;
+                emp.endDate = endDate;
                 emp.hotels = hotels;
                 emp.maxDays = maxDays;
                 emp.fixedShift = fixedShift;
@@ -2506,7 +2552,7 @@
                 emp.dayShifts = dayShifts;
                 emp.color = color;
             } else {
-                state.employees.push({ id: generateId(), name, position, hotels, fixedShift, maxDays, defaultFreeDays, dayShifts, color });
+                state.employees.push({ id: generateId(), name, position, startDate, endDate, hotels, fixedShift, maxDays, defaultFreeDays, dayShifts, color });
             }
 
             saveState();
@@ -2711,6 +2757,13 @@
                 <label>Notiz (optional)</label>
                 <input type="text" id="abs-note" value="${existing ? (existing.note || '') : ''}" placeholder="z.B. Arzttermin">
             </div>
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="abs-hide-from-plan" ${existing && existing.hideFromPlan ? 'checked' : ''}>
+                    Mitarbeiter waehrend Abwesenheit vom Wochenplan ausblenden
+                </label>
+                <p style="font-size:10px;color:var(--text-dim);margin-top:4px">Bei laengerer Abwesenheit (Ferien, Mutterschutz etc.) den Mitarbeiter aus dem Plan entfernen</p>
+            </div>
         `;
 
         openModal(title, html, () => {
@@ -2719,6 +2772,7 @@
             const startDate = document.getElementById('abs-start').value;
             const endDate = document.getElementById('abs-end').value;
             const note = document.getElementById('abs-note').value.trim();
+            const hideFromPlan = document.getElementById('abs-hide-from-plan').checked;
 
             if (!startDate || !endDate) { showToast('Datum ist erforderlich', 'error'); return false; }
             if (startDate > endDate) { showToast('Enddatum muss nach Startdatum sein', 'error'); return false; }
@@ -2757,8 +2811,9 @@
                 existing.startDate = startDate;
                 existing.endDate = endDate;
                 existing.note = note;
+                existing.hideFromPlan = hideFromPlan;
             } else {
-                state.absences.push({ id: generateId(), employeeId, type, startDate, endDate, note });
+                state.absences.push({ id: generateId(), employeeId, type, startDate, endDate, note, hideFromPlan });
             }
 
             // Mark in schedule
